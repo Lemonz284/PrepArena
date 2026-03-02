@@ -1,0 +1,37 @@
+# Django Backend
+django
+djangorestframework
+django-cors-headers
+python-decouple
+Pillow
+djangorestframework-simplejwt
+
+# Machine Learning & Data Science
+numpy
+pandas
+scikit-learn
+matplotlib
+seaborn
+tensorflow
+torch
+torchvision
+jupyter
+notebook
+
+# HTTP & API
+requests
+httpx
+
+# Development & Testing
+pytest
+pytest-django
+black
+flake8
+python-dotenv
+
+# Database (additional SQLite tools)
+sqlite-utils
+
+# Utilities
+python-dateutil
+pytz
