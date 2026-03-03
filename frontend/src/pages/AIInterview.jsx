@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { usePrep } from '../context/PrepContext';
 import './AIInterview.css';
 
 /* Simulated AI question sequences */
@@ -18,12 +19,33 @@ export default function AIInterview() {
   const navigate = useNavigate();
   const { resumeName = '', company = '', role = '' } = location.state || {};
 
+  const { addSession } = usePrep();
+  const savedRef = useRef(false);
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [qIndex, setQIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [ended, setEnded] = useState(false);
   const bottomRef = useRef();
+
+  // Record session when interview ends
+  useEffect(() => {
+    if (!ended || savedRef.current) return;
+    savedRef.current = true;
+    const now = new Date();
+    const topic = [company, role].filter(Boolean).join(' – ') || 'AI Interview';
+    addSession({
+      id: Date.now(),
+      type: 'AI Interview',
+      topic,
+      score: '—',
+      pct: null,
+      date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      dayKey: now.toISOString().slice(0, 10),
+      status: 'Reviewed',
+    });
+  }, [ended]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deliver first question on mount
   useEffect(() => {

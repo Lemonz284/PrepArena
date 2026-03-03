@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { usePrep } from '../context/PrepContext';
 import './MockTestResults.css';
 
 export default function MockTestResults() {
@@ -12,6 +14,25 @@ export default function MockTestResults() {
   const mins = Math.floor(timeTaken / 60);
   const secs = timeTaken % 60;
   const passed = pct >= 60;
+
+  const { addSession } = usePrep();
+  const savedRef = useRef(false);
+
+  useEffect(() => {
+    if (savedRef.current || !total) return;
+    savedRef.current = true;
+    const now = new Date();
+    addSession({
+      id: Date.now(),
+      type: 'AI Mock Test',
+      topic: topic || 'General',
+      score: `${score}/${total}`,
+      pct,
+      date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      dayKey: now.toISOString().slice(0, 10),
+      status: passed ? 'Passed' : 'Failed',
+    });
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const circleCirc = 2 * Math.PI * 54; // r=54
   const offset = circleCirc - (pct / 100) * circleCirc;

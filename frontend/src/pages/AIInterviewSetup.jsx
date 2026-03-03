@@ -78,7 +78,7 @@ export default function AIInterviewSetup() {
               ) : (
                 <>
                   <span className="drop-icon">⬆️</span>
-                  <span className="drop-label">Drag & drop or <u>browse</u></span>
+                  <span className="drop-label">Drag & Drop</span>
                   <span className="drop-hint">PDF or DOC · Max 5 MB</span>
                 </>
               )}
@@ -109,7 +109,7 @@ export default function AIInterviewSetup() {
               ) : (
                 <>
                   <span className="drop-icon">⬆️</span>
-                  <span className="drop-label">Drag & drop or <u>browse</u></span>
+                  <span className="drop-label">Drag & Drop</span>
                   <span className="drop-hint">PDF, DOC or TXT · Max 5 MB</span>
                 </>
               )}

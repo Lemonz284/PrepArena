@@ -3,86 +3,101 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import './MockTest.css';
 
-/* ── Hardcoded question bank (keyed by topic) ── */
-const QUESTION_BANK = {
-  'Data Structures': [
-    { q: 'Which data structure uses LIFO order?', options: ['Queue', 'Stack', 'Heap', 'Graph'], answer: 1 },
-    { q: 'What is the time complexity of searching in a balanced BST?', options: ['O(n)', 'O(log n)', 'O(1)', 'O(n²)'], answer: 1 },
-    { q: 'Which traversal visits root first?', options: ['Inorder', 'Postorder', 'Preorder', 'Level-order'], answer: 2 },
-    { q: 'A hash table has average-case lookup of:', options: ['O(n)', 'O(log n)', 'O(1)', 'O(n log n)'], answer: 2 },
-    { q: 'Which is NOT a linear data structure?', options: ['Array', 'Linked List', 'Stack', 'Tree'], answer: 3 },
-    { q: 'Dijkstra\'s algorithm finds:', options: ['Minimum spanning tree', 'Shortest path', 'Topological sort', 'Cycle detection'], answer: 1 },
-    { q: 'What does a priority queue use internally?', options: ['Stack', 'Array', 'Heap', 'Graph'], answer: 2 },
-    { q: 'In a doubly linked list, each node has:', options: ['One pointer', 'Two pointers', 'Three pointers', 'None'], answer: 1 },
-    { q: 'Which structure is best for BFS?', options: ['Stack', 'Queue', 'Heap', 'Tree'], answer: 1 },
-    { q: 'AVL trees maintain balance by ensuring height difference is at most:', options: ['0', '1', '2', '3'], answer: 1 },
-    { q: 'Which data structure is used for undo operations?', options: ['Queue', 'Stack', 'Graph', 'Hash'], answer: 1 },
-    { q: 'Insertion sort is best when input is:', options: ['Random', 'Reverse sorted', 'Nearly sorted', 'Unsorted'], answer: 2 },
-    { q: 'Which structure allows O(1) push and pop?', options: ['Queue', 'Stack', 'BST', 'Trie'], answer: 1 },
-    { q: 'A complete binary tree with n nodes has height:', options: ['n', 'log n', 'n/2', 'n²'], answer: 1 },
-    { q: 'Trie is primarily used for:', options: ['Sorting', 'Graph traversal', 'String searching', 'Hashing'], answer: 2 },
-    { q: 'Which is an in-place sorting algorithm?', options: ['Merge Sort', 'Counting Sort', 'Quick Sort', 'Radix Sort'], answer: 2 },
-    { q: 'Best case of bubble sort is:', options: ['O(n²)', 'O(n log n)', 'O(n)', 'O(1)'], answer: 2 },
-    { q: 'A deque supports insertions at:', options: ['Front only', 'Back only', 'Both ends', 'Middle only'], answer: 2 },
-    { q: 'Segment trees are used for:', options: ['Graph search', 'Range queries', 'String match', 'Sorting'], answer: 1 },
-    { q: 'What is the worst-case time for quicksort?', options: ['O(n)', 'O(n log n)', 'O(n²)', 'O(log n)'], answer: 2 },
-  ],
-  default: [
-    { q: 'What does CPU stand for?', options: ['Central Processing Unit', 'Core Processing Utility', 'Central Program Unit', 'Core Program Utility'], answer: 0 },
-    { q: 'Which protocol is used for web browsing?', options: ['FTP', 'SMTP', 'HTTP', 'SSH'], answer: 2 },
-    { q: 'What is a primary key in a database?', options: ['A foreign reference', 'A unique row identifier', 'An index column', 'A default value'], answer: 1 },
-    { q: 'REST APIs are stateless. What does that mean?', options: ['Each request is dependent on previous', 'Server stores session state', 'Each request is independent', 'No authentication needed'], answer: 2 },
-    { q: 'Which layer does TCP operate at?', options: ['Network', 'Data Link', 'Transport', 'Application'], answer: 2 },
-    { q: 'What is a deadlock?', options: ['Infinite loop', 'Two processes waiting on each other', 'Memory overflow', 'CPU overload'], answer: 1 },
-    { q: 'Git is a:', options: ['Database', 'Version control system', 'Programming language', 'Web framework'], answer: 1 },
-    { q: 'Which HTTP method is idempotent?', options: ['POST', 'PUT', 'Both PUT and POST', 'Neither'], answer: 1 },
-    { q: 'ACID stands for:', options: ['Atomicity, Consistency, Isolation, Durability', 'Access, Control, Integrity, Data', 'Atomicity, Control, Integrity, Durability', 'Access, Consistency, Isolation, Data'], answer: 0 },
-    { q: 'What is the time complexity of binary search?', options: ['O(n)', 'O(n²)', 'O(log n)', 'O(1)'], answer: 2 },
-    { q: 'A process vs a thread: threads share:', options: ['CPU', 'Memory space', 'Both', 'Neither'], answer: 1 },
-    { q: 'SQL stands for:', options: ['Structured Query Language', 'Standard Query Logic', 'Simple Query Layer', 'Stored Query Language'], answer: 0 },
-    { q: 'Which is a NoSQL database?', options: ['PostgreSQL', 'MySQL', 'MongoDB', 'SQLite'], answer: 2 },
-    { q: 'What does DNS resolve?', options: ['IP to MAC', 'Domain to IP', 'IP to port', 'URL to path'], answer: 1 },
-    { q: 'Virtual memory allows:', options: ['Faster CPU', 'More RAM than physically present', 'GPU acceleration', 'Disk compression'], answer: 1 },
-    { q: 'Which design pattern is React based on?', options: ['MVC', 'Observer', 'Component/Compositional', 'Factory'], answer: 2 },
-    { q: 'Big O of O(1) means:', options: ['Linear time', 'Logarithmic time', 'Constant time', 'Quadratic time'], answer: 2 },
-    { q: 'What is a race condition?', options: ['Fast process', 'Concurrent access to shared data', 'Memory leak', 'Deadlock type'], answer: 1 },
-    { q: 'CI/CD stands for:', options: ['Code Integration / Code Delivery', 'Continuous Integration / Continuous Delivery', 'Compiled Input / Compiled Data', 'None of the above'], answer: 1 },
-    { q: 'OAuth is used for:', options: ['Encryption', 'Authorization', 'Authentication only', 'Database access'], answer: 1 },
-  ],
-};
+/* ── Loading screen ── */
+function LoadingScreen({ topic, difficulty }) {
+  const [dots, setDots] = useState('');
+  useEffect(() => {
+    const t = setInterval(() => setDots((d) => (d.length < 3 ? d + '.' : '')), 500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="test-root">
+      <Navbar />
+      <div className="test-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: '1.5rem' }}>
+        <div style={{ fontSize: '3rem' }}>🤖</div>
+        <h2 style={{ color: '#a78bfa', margin: 0 }}>Generating your test{dots}</h2>
+        <p style={{ color: '#94a3b8', margin: 0 }}>AI is crafting 15 <strong style={{ color: '#e2e8f0' }}>{topic}</strong> questions at <strong style={{ color: '#e2e8f0' }}>{difficulty}</strong> difficulty</p>
+        <div className="ai-spinner" />
+      </div>
+    </div>
+  );
+}
 
-function getQuestions(topic, difficulty, count) {
-  const pool = QUESTION_BANK[topic] || QUESTION_BANK['default'];
-  // shuffle and slice
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(count, shuffled.length));
+/* ── Error screen ── */
+function ErrorScreen({ message, onRetry }) {
+  return (
+    <div className="test-root">
+      <Navbar />
+      <div className="test-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: '1.5rem' }}>
+        <div style={{ fontSize: '3rem' }}>⚠️</div>
+        <h2 style={{ color: '#f87171', margin: 0 }}>Failed to Generate Test</h2>
+        <p style={{ color: '#94a3b8', margin: 0, maxWidth: '400px', textAlign: 'center' }}>{message}</p>
+        <button className="nav-btn submit-btn" onClick={onRetry}>🔄 Retry</button>
+      </div>
+    </div>
+  );
 }
 
 export default function MockTest() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { topic = 'Data Structures', difficulty = 'Medium', count = 10 } = location.state || {};
+  const { topic = 'Data Structures', difficulty = 'Medium', count = 15 } = location.state || {};
 
-  const [questions] = useState(() => getQuestions(topic, difficulty, count));
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [timeLeft, setTimeLeft] = useState(count * 90); // 90s per question
+  const [timeLeft, setTimeLeft] = useState(count * 90);
   const [finished, setFinished] = useState(false);
+
+  const fetchQuestions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/generate-mock-test/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, difficulty, count }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Unknown server error');
+      }
+      if (!data.questions || data.questions.length === 0) {
+        throw new Error('No questions returned from AI');
+      }
+      setQuestions(data.questions);
+      setTimeLeft(data.questions.length * 90);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [topic, difficulty, count]);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   const handleFinish = useCallback(() => {
     if (finished) return;
     setFinished(true);
     const finalScore = questions.filter((q, i) => answers[i] === q.answer).length;
     navigate('/dashboard/mock-results', {
-      state: { questions, answers, score: finalScore, topic, difficulty, timeTaken: count * 90 - timeLeft },
+      state: { questions, answers, score: finalScore, topic, difficulty, timeTaken: questions.length * 90 - timeLeft },
     });
-  }, [finished, questions, answers, navigate, topic, difficulty, count, timeLeft]);
+  }, [finished, questions, answers, navigate, topic, difficulty, timeLeft]);
 
   useEffect(() => {
+    if (loading || error || questions.length === 0) return;
     if (timeLeft <= 0) { handleFinish(); return; }
     const t = setInterval(() => setTimeLeft((s) => s - 1), 1000);
     return () => clearInterval(t);
-  }, [timeLeft, handleFinish]);
+  }, [timeLeft, handleFinish, loading, error, questions]);
+
+  if (loading) return <LoadingScreen topic={topic} difficulty={difficulty} />;
+  if (error) return <ErrorScreen message={error} onRetry={fetchQuestions} />;
 
   const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
   const secs = String(timeLeft % 60).padStart(2, '0');
@@ -174,3 +189,5 @@ export default function MockTest() {
     </div>
   );
 }
+
+

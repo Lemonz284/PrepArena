@@ -21,6 +21,7 @@ notebook
 # HTTP & API
 requests
 httpx
+groq
 
 # Development & Testing
 pytest
