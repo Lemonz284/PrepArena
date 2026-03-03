@@ -116,7 +116,8 @@
   margin-top: 2px;
 }
 
-/* Re-used section label/title/subtitle */
+/* Testimonials re-uses the shared .section-label/.section-title etc from FeaturesSection.css */
+/* Only define them locally as fallback — global ones defined in FeaturesSection.css */
 .section-label {
   display: inline-block;
   font-size: 0.8rem;

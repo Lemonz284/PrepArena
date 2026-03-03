@@ -14,7 +14,18 @@
   margin-bottom: 2.5rem;
 }
 
-.isetup-icon { font-size: 3rem; line-height: 1; }
+.isetup-icon {
+  width: 52px;
+  height: 52px;
+  background: var(--yellow-dim);
+  border: 1px solid rgba(240,180,41,0.25);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--yellow);
+  flex-shrink: 0;
+}
 
 .isetup-title {
   font-size: 1.9rem;

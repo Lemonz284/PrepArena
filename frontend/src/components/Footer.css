@@ -73,15 +73,10 @@
   margin-bottom: 0.75rem;
 }
 
-.footer-logo .logo-icon {
-  background: #f5c518;
-  border-radius: 8px;
-  width: 32px;
-  height: 32px;
+.footer-logo .logo-mark {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
 }
 
 .footer-tagline {

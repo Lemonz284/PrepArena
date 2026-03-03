@@ -27,7 +27,18 @@
   margin-bottom: 2.5rem;
 }
 
-.setup-icon { font-size: 3rem; line-height: 1; }
+.setup-icon {
+  width: 52px;
+  height: 52px;
+  background: var(--yellow-dim);
+  border: 1px solid rgba(240,180,41,0.25);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--yellow);
+  flex-shrink: 0;
+}
 
 .setup-title {
   font-size: 1.9rem;
@@ -117,7 +128,15 @@
   transition: all 0.15s;
 }
 
-.diff-icon { font-size: 1.1rem; }
+.diff-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.diff-dot-easy   { background: #22c55e; }
+.diff-dot-medium { background: #eab308; }
+.diff-dot-hard   { background: #ef4444; }
 
 .diff-btn.diff-easy:hover,   .diff-btn.diff-easy.selected   { border-color: var(--green); background: var(--green-dim); color: var(--green); }
 .diff-btn.diff-medium:hover, .diff-btn.diff-medium.selected { border-color: var(--yellow); background: var(--yellow-dim); color: var(--yellow); }

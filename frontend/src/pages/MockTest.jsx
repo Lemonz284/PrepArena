@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Loader2, AlertCircle, Clock } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import './MockTest.css';
 
@@ -14,9 +15,9 @@ function LoadingScreen({ topic, difficulty }) {
     <div className="test-root">
       <Navbar />
       <div className="test-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: '1.5rem' }}>
-        <div style={{ fontSize: '3rem' }}>🤖</div>
+        <Loader2 size={40} strokeWidth={1.5} style={{ color: '#4e7fff', animation: 'spin 1s linear infinite' }} />
         <h2 style={{ color: '#a78bfa', margin: 0 }}>Generating your test{dots}</h2>
-        <p style={{ color: '#94a3b8', margin: 0 }}>AI is crafting 15 <strong style={{ color: '#e2e8f0' }}>{topic}</strong> questions at <strong style={{ color: '#e2e8f0' }}>{difficulty}</strong> difficulty</p>
+        <p style={{ color: '#94a3b8', margin: 0 }}>AI is crafting <strong style={{ color: '#e2e8f0' }}>{topic}</strong> questions at <strong style={{ color: '#e2e8f0' }}>{difficulty}</strong> difficulty</p>
         <div className="ai-spinner" />
       </div>
     </div>
@@ -29,10 +30,10 @@ function ErrorScreen({ message, onRetry }) {
     <div className="test-root">
       <Navbar />
       <div className="test-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: '1.5rem' }}>
-        <div style={{ fontSize: '3rem' }}>⚠️</div>
+        <AlertCircle size={40} strokeWidth={1.5} style={{ color: '#f87171' }} />
         <h2 style={{ color: '#f87171', margin: 0 }}>Failed to Generate Test</h2>
         <p style={{ color: '#94a3b8', margin: 0, maxWidth: '400px', textAlign: 'center' }}>{message}</p>
-        <button className="nav-btn submit-btn" onClick={onRetry}>🔄 Retry</button>
+        <button className="nav-btn submit-btn" onClick={onRetry}>Retry</button>
       </div>
     </div>
   );
@@ -122,7 +123,7 @@ export default function MockTest() {
             <span className="test-diff-tag">{difficulty}</span>
           </div>
           <div className={`test-timer ${urgent ? 'urgent' : ''}`}>
-            ⏱ {mins}:{secs}
+            <Clock size={13} strokeWidth={2} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />{mins}:{secs}
           </div>
           <div className="test-progress-text">{answered}/{questions.length} answered</div>
         </div>

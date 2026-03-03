@@ -1,6 +1,6 @@
 /* ===========================
    Global Reset & Base Styles
-   PrepArena – Dark Theme
+   PrepArena
    =========================== */
 
 *, *::before, *::after {
@@ -11,35 +11,43 @@
 
 :root {
   /* Backgrounds */
-  --bg:        #080d18;
-  --surface:   #0f1623;
-  --surface-2: #141e2e;
-  --surface-3: #192436;
+  --bg:        #05090f;
+  --surface:   #090f1a;
+  --surface-2: #0e1622;
+  --surface-3: #131e2c;
 
   /* Borders */
-  --border:      #1e2d42;
-  --border-soft: rgba(255,255,255,0.06);
+  --border:      #182438;
+  --border-soft: rgba(255,255,255,0.04);
 
   /* Text */
-  --text:       #e8f0ff;
-  --text-2:     #8a9bb8;
-  --text-muted: #4e6080;
+  --text:       #eef2ff;
+  --text-2:     #6b82a0;
+  --text-muted: #374e68;
 
-  /* Accents */
-  --yellow:      #f5c518;
-  --yellow-dark: #e6ad00;
-  --yellow-dim:  rgba(245,197,24,0.14);
-  --yellow-glow: rgba(245,197,24,0.28);
+  /* Primary accent */
+  --yellow:      #f0b429;
+  --yellow-dark: #d4970e;
+  --yellow-dim:  rgba(240,180,41,0.08);
+  --yellow-glow: rgba(240,180,41,0.18);
 
-  --green:      #22c55e;
-  --green-dark: #16a34a;
-  --green-dim:  rgba(34,197,94,0.14);
-  --green-glow: rgba(34,197,94,0.28);
+  /* Blue accent */
+  --blue:      #4e7fff;
+  --blue-dark: #3a6be8;
+  --blue-dim:  rgba(78,127,255,0.10);
+  --blue-glow: rgba(78,127,255,0.18);
 
-  --red:     #ef4444;
-  --red-dim: rgba(239,68,68,0.14);
+  /* Functional */
+  --green:      #34d399;
+  --green-dark: #1fb57e;
+  --green-dim:  rgba(52,211,153,0.10);
+  --green-glow: rgba(52,211,153,0.18);
+
+  --red:     #f87171;
+  --red-dim: rgba(248,113,113,0.10);
 
   --font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius: 12px;
 }
 
 html {

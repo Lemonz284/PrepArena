@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { Bot, User, Mic, FileText } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import './AIInterview.css';
@@ -107,9 +108,9 @@ export default function AIInterview() {
           <div className="iv-header-left">
             <Link to="/dashboard" className="back-link">← Exit</Link>
             <div className="iv-session-info">
-              <span className="iv-badge">🎤 AI Interview</span>
+              <span className="iv-badge"><Mic size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.3rem' }} />AI Interview</span>
               {company && <span className="iv-company">{company} · {role}</span>}
-              {resumeName && <span className="iv-resume">📄 {resumeName}</span>}
+              {resumeName && <span className="iv-resume"><FileText size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />{resumeName}</span>}
             </div>
           </div>
           <div className="iv-progress-wrap">
@@ -125,7 +126,7 @@ export default function AIInterview() {
           {messages.map((m, i) => (
             <div key={i} className={`iv-msg iv-msg-${m.role}`}>
               <div className={`iv-avatar ${m.role === 'ai' ? 'avatar-ai' : 'avatar-user'}`}>
-                {m.role === 'ai' ? '🤖' : '👤'}
+                {m.role === 'ai' ? <Bot size={16} strokeWidth={1.75} /> : <User size={16} strokeWidth={1.75} />}
               </div>
               <div className="iv-bubble">{m.text}</div>
             </div>
@@ -133,7 +134,7 @@ export default function AIInterview() {
 
           {loading && (
             <div className="iv-msg iv-msg-ai">
-              <div className="iv-avatar avatar-ai">🤖</div>
+              <div className="iv-avatar avatar-ai"><Bot size={16} strokeWidth={1.75} /></div>
               <div className="iv-bubble iv-typing">
                 <span /><span /><span />
               </div>
@@ -162,7 +163,7 @@ export default function AIInterview() {
           </div>
         ) : (
           <div className="iv-ended-bar">
-            <span>🎉 Interview complete! Your report is ready on the dashboard.</span>
+            <span>Interview complete. Your report is ready on the dashboard.</span>
             <Link to="/dashboard" className="iv-dash-btn">Go to Dashboard →</Link>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { CheckCircle2, XCircle, Clock, RotateCcw, LayoutDashboard } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import './MockTestResults.css';
@@ -56,21 +57,21 @@ export default function MockTestResults() {
             </svg>
             <div className="res-circle-text">
               <span className="circle-pct">{pct}%</span>
-              <span className="circle-label">{passed ? '✓ Pass' : '✗ Fail'}</span>
+              <span className="circle-label">{passed ? 'Pass' : 'Fail'}</span>
             </div>
           </div>
 
           <div className="res-hero-info">
-            <h1 className="res-title">{passed ? '🎉 Nice work!' : '📚 Keep practising!'}</h1>
+            <h1 className="res-title">{passed ? 'Nice work!' : 'Keep practising.'}</h1>
             <p className="res-sub">
               You scored <strong>{score}/{total}</strong> on <strong>{topic}</strong> ({difficulty})
             </p>
             <div className="res-meta-row">
-              <span className="res-meta-pill">⏱ {mins}m {secs}s</span>
+              <span className="res-meta-pill"><Clock size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />{mins}m {secs}s</span>
               <span className={`res-meta-pill ${passed ? 'pill-pass' : 'pill-fail'}`}>
-                {passed ? '✓ Passed' : '✗ Failed'}
+                {passed ? <CheckCircle2 size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> : <XCircle size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />}{passed ? 'Passed' : 'Failed'}
               </span>
-              <span className="res-meta-pill">📋 {total} Questions</span>
+              <span className="res-meta-pill">{total} Questions</span>
             </div>
           </div>
         </div>
@@ -83,7 +84,9 @@ export default function MockTestResults() {
             const correct = userAns === q.answer;
             return (
               <div key={i} className={`res-row ${correct ? 'row-correct' : 'row-wrong'}`}>
-                <div className="res-row-num">{correct ? '✓' : '✗'}</div>
+                <div className={`res-row-num ${correct ? 'num-correct' : 'num-wrong'}`}>
+                {correct ? <CheckCircle2 size={15} strokeWidth={2} /> : <XCircle size={15} strokeWidth={2} />}
+              </div>
                 <div className="res-row-body">
                   <p className="res-q-text">Q{i + 1}. {q.q}</p>
                   <div className="res-ans-row">
@@ -108,10 +111,10 @@ export default function MockTestResults() {
             className="res-btn res-btn-retake"
             onClick={() => navigate('/dashboard/mock-test-setup')}
           >
-            🔁 New Test
+            <RotateCcw size={14} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />New Test
           </button>
           <Link to="/dashboard" className="res-btn res-btn-dash">
-            🏠 Dashboard
+            <LayoutDashboard size={14} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Dashboard
           </Link>
         </div>
 

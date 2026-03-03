@@ -3,7 +3,7 @@ import './Footer.css';
 
 const LINKS = {
   Product: ['Mock Interviews', 'Practice Problems', 'System Design', 'Behavioral Prep', 'Company Prep'],
-  Company: ['About Us', 'Blog', 'Careers', 'Press'],
+  Company: ['About', 'Blog', 'Careers', 'Press'],
   Support: ['FAQ', 'Contact', 'Privacy Policy', 'Terms of Service'],
 };
 
@@ -31,7 +31,13 @@ export default function Footer() {
         <div className="footer-inner">
           <div className="footer-brand">
             <div className="footer-logo">
-              <span className="logo-icon">⚡</span>
+              <span className="logo-mark">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <rect width="18" height="18" rx="5" fill="#f0b429"/>
+                  <path d="M5 13L9 5L13 13" stroke="#05090f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="6.5" y1="10.5" x2="11.5" y2="10.5" stroke="#05090f" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </span>
               <span>PrepArena</span>
             </div>
             <p className="footer-tagline">

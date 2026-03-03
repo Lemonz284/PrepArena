@@ -1,46 +1,41 @@
+import { Brain, BookOpen, BarChart2, MessageSquare, Layers, Building2 } from 'lucide-react';
 import './FeaturesSection.css';
 
 const FEATURES = [
   {
-    icon: '🧠',
+    Icon: Brain,
     title: 'AI Mock Interviews',
-    description:
-      'Our AI interviewer conducts full coding and system design sessions in the style of a FAANG interview — with audio and a live collaborative editor.',
-    tag: 'Most Popular',
+    description: 'Full coding and system design sessions with real-time AI feedback tailored to company style.',
+    tag: 'Popular',
   },
   {
-    icon: '📝',
+    Icon: BookOpen,
     title: '200+ Curated Problems',
-    description:
-      'Work through hand-picked problems from real FAANG interviews, organized by topic, difficulty, and company so you study what matters.',
+    description: 'Hand-picked questions from top companies — organised by topic, difficulty, and company.',
     tag: null,
   },
   {
-    icon: '📈',
+    Icon: BarChart2,
     title: 'Performance Analytics',
-    description:
-      'Track your progress over time. See your weak spots at a glance and receive a personalized study plan that adapts as you improve.',
+    description: 'Track progress, surface weak spots, and receive a personalised improvement plan.',
     tag: null,
   },
   {
-    icon: '💬',
-    title: 'Behavioral Prep',
-    description:
-      'Practice STAR-method answers to common behavioral questions. Get feedback on clarity, structure, and impact of your stories.',
+    Icon: MessageSquare,
+    title: 'Behavioural Prep',
+    description: 'Practice STAR-method answers and get feedback on clarity, structure, and impact.',
     tag: null,
   },
   {
-    icon: '🏗️',
+    Icon: Layers,
     title: 'System Design Sessions',
-    description:
-      'Deep-dive into scalable architecture design with guided walkthroughs covering everything from load balancers to distributed databases.',
+    description: 'Architecture deep-dives covering load balancing, databases, and distributed systems.',
     tag: null,
   },
   {
-    icon: '🎓',
+    Icon: Building2,
     title: 'Company-Specific Prep',
-    description:
-      'Target Google, Meta, Amazon, Microsoft, and more. Get tailored question sets and strategy guides for each company\'s interview style.',
+    description: 'Targeted question sets and strategy guides for Google, Meta, Amazon, and more.',
     tag: 'New',
   },
 ];
@@ -52,17 +47,18 @@ export default function FeaturesSection() {
         <div className="section-label">Features</div>
         <h2 className="section-title">Everything you need to get hired</h2>
         <p className="section-subtitle">
-          From your first practice session to negotiating your offer, PrepArena
-          has you covered at every stage of the process.
+          From first session to final offer — PrepArena supports every stage.
         </p>
 
         <div className="features-grid">
-          {FEATURES.map((f, idx) => (
+          {FEATURES.map(({ Icon, title, description, tag }, idx) => (
             <div className="feature-card" key={idx}>
-              {f.tag && <span className="feature-tag">{f.tag}</span>}
-              <div className="feature-icon">{f.icon}</div>
-              <h3 className="feature-title">{f.title}</h3>
-              <p className="feature-desc">{f.description}</p>
+              {tag && <span className="feature-tag">{tag}</span>}
+              <div className="feature-icon-wrap">
+                <Icon size={18} strokeWidth={1.75} />
+              </div>
+              <h3 className="feature-title">{title}</h3>
+              <p className="feature-desc">{description}</p>
             </div>
           ))}
         </div>

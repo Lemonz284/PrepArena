@@ -115,8 +115,8 @@
   flex-shrink: 0;
 }
 
-.avatar-ai   { background: var(--surface-2); }
-.avatar-user { background: var(--green-dim); }
+.avatar-ai   { background: var(--surface-2); color: var(--blue); border: 1px solid var(--border); }
+.avatar-user { background: var(--green-dim); color: var(--green); }
 
 .iv-bubble {
   max-width: 70%;

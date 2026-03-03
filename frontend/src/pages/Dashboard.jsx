@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { Target, TrendingUp, Flame, Trophy, Brain, Mic, History, Check, FileText, Key, CalendarDays, Info, Clipboard, Upload, CheckCircle2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import { extractTextFromFile } from '../utils/extractText';
@@ -46,10 +47,10 @@ export default function Dashboard() {
   const bestScore = scoredSessions.length ? Math.max(...scoredSessions.map(s => s.pct)) : null;
   const streak    = computeStreak(sessions);
   const STATS = [
-    { label: 'Sessions Done', value: String(sessions.length),             icon: '🎯' },
-    { label: 'Avg Score',     value: avgScore  !== null ? `${avgScore}%`  : '—', icon: '📊' },
-    { label: 'Day Streak',    value: String(streak),                       icon: '🔥' },
-    { label: 'Best Score',    value: bestScore !== null ? `${bestScore}%` : '—', icon: '🏆' },
+    { label: 'Sessions Done', value: String(sessions.length),             Icon: Target },
+    { label: 'Avg Score',     value: avgScore  !== null ? `${avgScore}%`  : '—', Icon: TrendingUp },
+    { label: 'Day Streak',    value: String(streak),                       Icon: Flame },
+    { label: 'Best Score',    value: bestScore !== null ? `${bestScore}%` : '—', Icon: Trophy },
   ];
 
   const [resumeLoading, setResumeLoading] = useState(false);
@@ -168,7 +169,7 @@ export default function Dashboard() {
         {/* Welcome */}
         <div className="db-welcome">
           <div>
-            <h1 className="db-welcome-title">Welcome back 👋</h1>
+            <h1 className="db-welcome-title">Welcome back</h1>
             <p className="db-welcome-sub">Upload your resume and job description to personalise your prep.</p>
           </div>
           <div className="db-date">March 1, 2026</div>
@@ -184,7 +185,7 @@ export default function Dashboard() {
             <div className="ctx-section">
               <div className="ctx-section-header">
                 <div className="ctx-title-block">
-                  <span className="ctx-title-icon">📂</span>
+                  <span className="ctx-title-icon"><FileText size={16} strokeWidth={1.75} /></span>
                   <div>
                     <h2 className="ctx-title">Your Prep Context</h2>
                     <p className="ctx-subtitle">
@@ -201,7 +202,7 @@ export default function Dashboard() {
                 <DropCard
                   label="Your CV / Resume"
                   hint="PDF, DOC or TXT · Max 5 MB"
-                  icon="📄" activeIcon="✅"
+                  icon={<Upload size={20} />} activeIcon={<CheckCircle2 size={20} />}
                   accept=".pdf,.doc,.docx,.txt"
                   fileName={resumeName} loading={resumeLoading}
                   drag={resumeDrag} setDrag={setResumeDrag}
@@ -211,7 +212,7 @@ export default function Dashboard() {
                 <DropCard
                   label="Job Description"
                   hint="PDF, DOC or TXT · Max 5 MB"
-                  icon="📋" activeIcon="✅"
+                  icon={<FileText size={20} />} activeIcon={<CheckCircle2 size={20} />}
                   accept=".pdf,.doc,.docx,.txt"
                   fileName={jdName} loading={jdLoading}
                   drag={jdDrag} setDrag={setJdDrag}
@@ -224,7 +225,8 @@ export default function Dashboard() {
                 <div className="ctx-keywords">
                   <div className="ctx-kw-header">
                     <span className="ctx-kw-title">
-                      🔑 Extracted Keywords
+                      <Key size={13} strokeWidth={2} style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} />
+                      Keywords
                       <span className="ctx-kw-count">{keywords.length}</span>
                     </span>
                     <span className="ctx-kw-sub">Shaping your Mock Test &amp; AI Interview</span>
@@ -239,7 +241,8 @@ export default function Dashboard() {
 
               {!contextReady && (
                 <p className="ctx-empty-note">
-                  ℹ️ You can still use all modes without uploading — questions will use default topics.
+                  <Info size={13} strokeWidth={2} style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} />
+                  You can still use all modes without uploading — questions will use default topics.
                 </p>
               )}
             </div>
@@ -247,7 +250,7 @@ export default function Dashboard() {
             {/* ── Schedule a Session ── */}
             <div className="sched-section">
               <div className="sched-header">
-                <span className="sched-header-icon">📅</span>
+                <span className="sched-header-icon"><CalendarDays size={16} strokeWidth={1.75} /></span>
                 <div>
                   <h2 className="sched-title">Schedule a Session</h2>
                   <p className="sched-subtitle">Plan ahead — scheduled sessions appear on the calendar.</p>
@@ -275,12 +278,12 @@ export default function Dashboard() {
                         type="button"
                         className={`sched-type-btn ${formType === 'mock' ? 'active-mock' : ''}`}
                         onClick={() => setFormType('mock')}
-                      >🧠 Mock Test</button>
+                      ><Brain size={13} strokeWidth={2} style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} /> Mock Test</button>
                       <button
                         type="button"
                         className={`sched-type-btn ${formType === 'interview' ? 'active-interview' : ''}`}
                         onClick={() => setFormType('interview')}
-                      >🎤 Interview</button>
+                      ><Mic size={13} strokeWidth={2} style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} /> Interview</button>
                     </div>
                   </div>
                 </div>
@@ -353,7 +356,7 @@ export default function Dashboard() {
 
             {/* Upcoming Sessions card */}
             <div className="upcoming-card">
-              <div className="upcoming-card-title">📋 Upcoming Sessions</div>
+              <div className="upcoming-card-title"><Clipboard size={14} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Upcoming Sessions</div>
               {upcomingSessions.length === 0 ? (
                 <p className="upcoming-empty">No sessions scheduled yet. Use the form to plan ahead.</p>
               ) : (
@@ -365,7 +368,7 @@ export default function Dashboard() {
                     });
                     return (
                       <div key={s.id} className={`upcoming-item ${s.type === 'mock' ? 'upcoming-mock' : 'upcoming-interview'}`}>
-                        <span className="upcoming-icon">{s.type === 'mock' ? '🧠' : '🎤'}</span>
+                        <span className="upcoming-icon">{s.type === 'mock' ? <Brain size={14} /> : <Mic size={14} />}</span>
                         <div className="upcoming-body">
                           <span className="upcoming-name">
                             {s.type === 'mock' ? 'Mock Test' : 'AI Interview'}
@@ -389,7 +392,7 @@ export default function Dashboard() {
         <div className="db-stats">
           {STATS.map((s) => (
             <div className="stat-card" key={s.label}>
-              <span className="stat-icon">{s.icon}</span>
+              <span className="stat-icon"><s.Icon size={18} strokeWidth={1.75} /></span>
               <span className="stat-value">{s.value}</span>
               <span className="stat-label">{s.label}</span>
             </div>
@@ -401,7 +404,7 @@ export default function Dashboard() {
         <div className="db-modes">
 
           <Link to="/dashboard/mock-test-setup" className="mode-card mode-mock">
-            <div className="mode-card-icon">🧠</div>
+            <div className="mode-card-icon"><Brain size={24} strokeWidth={1.75} /></div>
             <div className="mode-card-body">
               <h3>AI Mock Test</h3>
               <p>{contextReady
@@ -409,17 +412,17 @@ export default function Dashboard() {
                 : 'Answer MCQs by topic and difficulty. Timer runs. Results saved automatically.'}
               </p>
               <ul className="mode-card-bullets">
-                <li>✓ {contextReady ? `${keywords.length} keywords extracted` : 'Choose topic & difficulty'}</li>
-                <li>✓ Timed quiz experience</li>
-                <li>✓ Instant score &amp; analytics</li>
+                <li><Check size={12} strokeWidth={2.5} /> {contextReady ? `${keywords.length} keywords extracted` : 'Choose topic & difficulty'}</li>
+                <li><Check size={12} strokeWidth={2.5} /> Timed quiz experience</li>
+                <li><Check size={12} strokeWidth={2.5} /> Instant score &amp; analytics</li>
               </ul>
             </div>
-            {contextReady && <span className="mode-ctx-badge mode-ctx-yellow">Context Ready ✓</span>}
+            {contextReady && <span className="mode-ctx-badge mode-ctx-yellow">Context Ready</span>}
             <span className="mode-card-arrow">→</span>
           </Link>
 
           <Link to="/dashboard/interview-setup" className="mode-card mode-interview">
-            <div className="mode-card-icon">🎤</div>
+            <div className="mode-card-icon"><Mic size={24} strokeWidth={1.75} /></div>
             <div className="mode-card-body">
               <h3>AI Interview</h3>
               <p>{contextReady
@@ -427,25 +430,25 @@ export default function Dashboard() {
                 : 'Upload your resume and job description. Our AI conducts a contextual interview round.'}
               </p>
               <ul className="mode-card-bullets">
-                <li>✓ {contextReady ? 'Context pre-loaded ✓' : 'Resume + JD aware questions'}</li>
-                <li>✓ Speech or text answers</li>
-                <li>✓ Performance report generated</li>
+                <li><Check size={12} strokeWidth={2.5} /> {contextReady ? 'Context pre-loaded' : 'Resume + JD aware questions'}</li>
+                <li><Check size={12} strokeWidth={2.5} /> Speech or text answers</li>
+                <li><Check size={12} strokeWidth={2.5} /> Performance report generated</li>
               </ul>
             </div>
-            {contextReady && <span className="mode-ctx-badge mode-ctx-purple">Context Ready ✓</span>}
+            {contextReady && <span className="mode-ctx-badge mode-ctx-purple">Context Ready</span>}
             <span className="mode-card-arrow">→</span>
           </Link>
 
           <div className="mode-card mode-resume" style={{ cursor: 'pointer' }}
             onClick={() => document.getElementById('recent-sessions').scrollIntoView({ behavior: 'smooth' })}>
-            <div className="mode-card-icon">📂</div>
+            <div className="mode-card-icon"><History size={24} strokeWidth={1.75} /></div>
             <div className="mode-card-body">
-              <h3>Resume Previous Session</h3>
+              <h3>Session History</h3>
               <p>Pick up where you left off. Review past sessions, read AI feedback, or retake any test.</p>
               <ul className="mode-card-bullets">
-                <li>✓ Full session history</li>
-                <li>✓ Re-read AI feedback</li>
-                <li>✓ Retake any session</li>
+                <li><Check size={12} strokeWidth={2.5} /> Full session history</li>
+                <li><Check size={12} strokeWidth={2.5} /> Re-read AI feedback</li>
+                <li><Check size={12} strokeWidth={2.5} /> Retake any session</li>
               </ul>
             </div>
             <span className="mode-card-arrow">↓</span>
@@ -458,7 +461,7 @@ export default function Dashboard() {
         <div className="sessions-table-wrap">
           {sessions.length === 0 ? (
             <div className="sessions-empty">
-              <span className="sessions-empty-icon">📭</span>
+              <span className="sessions-empty-icon"><Clipboard size={32} strokeWidth={1.25} /></span>
               <p>No sessions yet — complete a <strong>Mock Test</strong> or <strong>AI Interview</strong> and it will appear here automatically.</p>
             </div>
           ) : (
@@ -474,7 +477,7 @@ export default function Dashboard() {
                   <tr key={s.id}>
                     <td>
                       <span className={`type-badge ${s.type === 'AI Mock Test' ? 'badge-mock' : 'badge-interview'}`}>
-                        {s.type === 'AI Mock Test' ? '🧠' : '🎤'} {s.type}
+                        {s.type === 'AI Mock Test' ? <Brain size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.3rem' }} /> : <Mic size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.3rem' }} />}{s.type}
                       </span>
                     </td>
                     <td>{s.topic}</td>

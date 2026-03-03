@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Brain, Clipboard, Clock } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import './MockTestSetup.css';
 
@@ -32,7 +33,7 @@ export default function MockTestSetup() {
         <Link to="/dashboard" className="back-link">← Back to Dashboard</Link>
 
         <div className="setup-header">
-          <div className="setup-icon">🧠</div>
+          <div className="setup-icon"><Brain size={28} strokeWidth={1.75} /></div>
           <div>
             <h1 className="setup-title">AI Mock Test</h1>
             <p className="setup-sub">Configure your session and start when ready.</p>
@@ -69,9 +70,7 @@ export default function MockTestSetup() {
                 className={`diff-btn diff-${d.toLowerCase()} ${difficulty === d ? 'selected' : ''}`}
                 onClick={() => setDifficulty(d)}
               >
-                <span className="diff-icon">
-                  {d === 'Easy' ? '🟢' : d === 'Medium' ? '🟡' : '🔴'}
-                </span>
+                <span className={`diff-dot diff-dot-${d.toLowerCase()}`} />
                 {d}
               </button>
             ))}
@@ -100,8 +99,8 @@ export default function MockTestSetup() {
         {/* Summary + Start */}
         {canStart && (
           <div className="setup-summary">
-            <span>📋 <strong>{count} {difficulty}</strong> questions on <strong>{topic}</strong></span>
-            <span className="summary-time">⏱ ~{count * 1.5} min</span>
+            <span><Clipboard size={13} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} /><strong>{count} {difficulty}</strong> questions on <strong>{topic}</strong></span>
+            <span className="summary-time"><Clock size={13} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.3rem' }} />~{count * 1.5} min</span>
           </div>
         )}
 

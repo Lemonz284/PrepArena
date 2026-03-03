@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Mic, Upload, FileText } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import './AIInterviewSetup.css';
 
@@ -47,7 +48,7 @@ export default function AIInterviewSetup() {
         <Link to="/dashboard" className="back-link">← Back to Dashboard</Link>
 
         <div className="isetup-header">
-          <div className="isetup-icon">🎤</div>
+          <div className="isetup-icon"><Mic size={28} strokeWidth={1.75} /></div>
           <div>
             <h1 className="isetup-title">AI Interview</h1>
             <p className="isetup-sub">Upload your resume and job context. The AI will tailor every question to you.</p>
@@ -71,13 +72,13 @@ export default function AIInterviewSetup() {
             >
               {resumeFile ? (
                 <>
-                  <span className="drop-file-icon">📄</span>
+                  <span className="drop-file-icon"><FileText size={22} strokeWidth={1.5} /></span>
                   <span className="drop-file-name">{resumeFile.name}</span>
                   <button className="drop-remove" onClick={(e) => { e.stopPropagation(); setResumeFile(null); }}>✕ Remove</button>
                 </>
               ) : (
                 <>
-                  <span className="drop-icon">⬆️</span>
+                  <span className="drop-icon"><Upload size={22} strokeWidth={1.5} /></span>
                   <span className="drop-label">Drag & Drop</span>
                   <span className="drop-hint">PDF or DOC · Max 5 MB</span>
                 </>
@@ -102,13 +103,13 @@ export default function AIInterviewSetup() {
             >
               {jdFile ? (
                 <>
-                  <span className="drop-file-icon">📋</span>
+                  <span className="drop-file-icon"><FileText size={22} strokeWidth={1.5} /></span>
                   <span className="drop-file-name">{jdFile.name}</span>
                   <button className="drop-remove" onClick={(e) => { e.stopPropagation(); setJdFile(null); }}>✕ Remove</button>
                 </>
               ) : (
                 <>
-                  <span className="drop-icon">⬆️</span>
+                  <span className="drop-icon"><Upload size={22} strokeWidth={1.5} /></span>
                   <span className="drop-label">Drag & Drop</span>
                   <span className="drop-hint">PDF, DOC or TXT · Max 5 MB</span>
                 </>
@@ -145,7 +146,7 @@ export default function AIInterviewSetup() {
 
         {canStart && (
           <div className="isetup-summary">
-            <span>🎤 Interview ready — <strong>{resumeFile.name}</strong> {company && `· ${company} ${role}`}</span>
+            <span><Mic size={13} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />Interview ready — <strong>{resumeFile.name}</strong> {company && `· ${company} ${role}`}</span>
           </div>
         )}
 
