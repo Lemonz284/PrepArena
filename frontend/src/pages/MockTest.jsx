@@ -246,10 +246,10 @@ export default function MockTest() {
         if (!vid) return;
 
         const startCapture = () => {
-          const canvas = canvasRef.current;
           frameTimerRef.current = setInterval(() => {
             const sid = procSidRef.current;
             const v = videoRef.current;
+            const canvas = canvasRef.current;  // read fresh every tick
             if (!sid || !canvas || !v || v.readyState < 2) return;
             canvas.width  = v.videoWidth  || 320;
             canvas.height = v.videoHeight || 240;
@@ -290,6 +290,13 @@ export default function MockTest() {
 
     // Stop frame capture timer
     clearInterval(frameTimerRef.current);
+
+    // Wait for any in-flight frame POSTs to land before closing the session.
+    // Without this, frames already sent but not yet received by Django arrive
+    // after stop_session pops the session and are silently discarded.
+    if (procSidRef.current) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
 
     // Stop proctoring and collect verdict
     let procResult = null;
