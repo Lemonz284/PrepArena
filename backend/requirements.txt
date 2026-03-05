@@ -17,6 +17,7 @@ torch
 torchvision
 jupyter
 notebook
+opencv-python
 
 # HTTP & API
 requests

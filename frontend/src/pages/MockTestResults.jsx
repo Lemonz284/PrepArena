@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, XCircle, Clock, RotateCcw, LayoutDashboard } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, RotateCcw, LayoutDashboard, ShieldCheck, ShieldAlert, ShieldOff } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import './MockTestResults.css';
@@ -8,7 +8,7 @@ import './MockTestResults.css';
 export default function MockTestResults() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { questions = [], answers = {}, score = 0, topic = '', difficulty = '', timeTaken = 0 } = location.state || {};
+  const { questions = [], answers = {}, score = 0, topic = '', difficulty = '', timeTaken = 0, proctor = null } = location.state || {};
 
   const total = questions.length;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -75,6 +75,51 @@ export default function MockTestResults() {
             </div>
           </div>
         </div>
+
+        {/* Proctoring Verdict */}
+        {proctor && (
+          <div className={`proctor-card ${proctor.camera_available ? (proctor.cheating ? 'proctor-cheat' : 'proctor-clean') : 'proctor-unavail'}`}>
+            <div className="proctor-card-header">
+              {!proctor.camera_available ? (
+                <><ShieldOff size={18} strokeWidth={1.75} /><span>Proctoring Unavailable</span></>
+              ) : proctor.cheating ? (
+                <><ShieldAlert size={18} strokeWidth={1.75} /><span>Suspicious Activity Detected</span></>
+              ) : (
+                <><ShieldCheck size={18} strokeWidth={1.75} /><span>Session Clean</span></>
+              )}
+              <span className="proctor-frames">{proctor.total_frames} frames analysed</span>
+            </div>
+
+            {proctor.camera_available && (
+              <div className="proctor-stats">
+                <div className="proctor-stat">
+                  <span className="pstat-label">Face absent</span>
+                  <span className={`pstat-value ${proctor.face_not_in_frame_pct > 15 ? 'pstat-bad' : 'pstat-ok'}`}>
+                    {proctor.face_not_in_frame_pct}%
+                  </span>
+                </div>
+                <div className="proctor-stat">
+                  <span className="pstat-label">Not at screen</span>
+                  <span className={`pstat-value ${proctor.not_looking_pct > 20 ? 'pstat-bad' : 'pstat-ok'}`}>
+                    {proctor.not_looking_pct}%
+                  </span>
+                </div>
+                <div className="proctor-stat">
+                  <span className="pstat-label">Multiple faces</span>
+                  <span className={`pstat-value ${proctor.multi_face_pct > 5 ? 'pstat-bad' : 'pstat-ok'}`}>
+                    {proctor.multi_face_pct}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {proctor.flags && proctor.flags.length > 0 && (
+              <ul className="proctor-flags">
+                {proctor.flags.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Per-question breakdown */}
         <h2 className="res-section-title">Answer Breakdown</h2>

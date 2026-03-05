@@ -6,6 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from dotenv import load_dotenv
 from groq import Groq
+from api import proctor
 
 load_dotenv()
 
@@ -84,5 +85,52 @@ def generate_mock_test(request):
 
     except json.JSONDecodeError as e:
         return JsonResponse({"error": f"Failed to parse request body: {e}"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def start_proctoring(request):
+    """Start a background proctoring session. Returns {session_id}."""
+    try:
+        sid = proctor.start_session()
+        return JsonResponse({"session_id": sid})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def push_proctoring_frame(request):
+    """Receive a raw JPEG frame and push it into the proctoring session.
+    Expects multipart/form-data: session_id (str) + frame (file/blob)."""
+    try:
+        sid = request.POST.get("session_id", "")
+        if not sid:
+            return JsonResponse({"error": "session_id required"}, status=400)
+        frame_file = request.FILES.get("frame")
+        if not frame_file:
+            return JsonResponse({"error": "frame required"}, status=400)
+        jpeg_bytes = frame_file.read()
+        proctor.push_frame(sid, jpeg_bytes)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stop_proctoring(request):
+    """Stop proctoring and return the verdict. Body: {session_id}."""
+    try:
+        body   = json.loads(request.body)
+        sid    = body.get("session_id", "")
+        if not sid:
+            return JsonResponse({"error": "session_id required"}, status=400)
+        result = proctor.stop_session(sid)
+        if result is None:
+            return JsonResponse({"error": "session not found"}, status=404)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

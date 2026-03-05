@@ -201,3 +201,95 @@
 .res-btn-retake:hover { background: var(--yellow-dark); transform: translateY(-2px); }
 .res-btn-dash { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
 .res-btn-dash:hover { background: var(--surface-3); transform: translateY(-2px); }
+
+/* ── Proctoring card ──────────────────────────────── */
+.proctor-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.proctor-clean   { border-color: rgba(52,211,153,0.35);  background: rgba(52,211,153,0.05); }
+.proctor-cheat   { border-color: rgba(248,113,113,0.40); background: rgba(248,113,113,0.06); }
+.proctor-unavail { border-color: var(--border); opacity: 0.7; }
+
+.proctor-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.proctor-clean .proctor-card-header   { color: var(--green); }
+.proctor-cheat .proctor-card-header   { color: var(--red); }
+.proctor-unavail .proctor-card-header { color: var(--text-muted); }
+
+.proctor-frames {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.proctor-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.proctor-stat {
+  flex: 1;
+  min-width: 100px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pstat-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.pstat-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.pstat-ok  { color: var(--green); }
+.pstat-bad { color: var(--red); }
+
+.proctor-flags {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.proctor-flags li {
+  font-size: 0.83rem;
+  color: var(--red);
+  padding-left: 1rem;
+  position: relative;
+}
+
+.proctor-flags li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--red);
+}

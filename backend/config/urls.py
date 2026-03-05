@@ -17,9 +17,12 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path
-from api.views import generate_mock_test
+from api.views import generate_mock_test, start_proctoring, push_proctoring_frame, stop_proctoring
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/generate-mock-test/", generate_mock_test, name="generate_mock_test"),
+    path("api/generate-mock-test/",   generate_mock_test,      name="generate_mock_test"),
+    path("api/proctoring/start/",     start_proctoring,        name="start_proctoring"),
+    path("api/proctoring/frame/",     push_proctoring_frame,   name="push_proctoring_frame"),
+    path("api/proctoring/stop/",      stop_proctoring,         name="stop_proctoring"),
 ]
