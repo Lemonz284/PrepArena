@@ -21,9 +21,12 @@ load_dotenv()
 def generate_mock_test(request):
     try:
         body = json.loads(request.body)
-        topic = body.get("topic", "General Computer Science")
+        topic      = body.get("topic", "General Computer Science")
         difficulty = body.get("difficulty", "Medium")
-        count = int(body.get("count", 15))
+        count      = int(body.get("count", 15))
+        mode       = body.get("mode", "standard")
+        resume_text = (body.get("resume_text") or "").strip()
+        jd_text     = (body.get("jd_text")     or "").strip()
 
         api_key = os.getenv("GROQ_API_KEY", "")
         if not api_key or api_key == "gsk_your_actual_key_here":
@@ -31,21 +34,49 @@ def generate_mock_test(request):
 
         client = Groq(api_key=api_key)
 
-        prompt = (
-            f"Generate exactly {count} multiple choice questions about \"{topic}\" "
-            f"at {difficulty} difficulty for a technical interview preparation test.\n\n"
-            "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
-            "Each element must have exactly these keys:\n"
-            "  \"q\": question text (string)\n"
-            "  \"options\": exactly 4 answer choices (array of 4 strings)\n"
-            "  \"answer\": zero-based index of the correct option (integer 0-3)\n\n"
-            "Example:\n"
-            "[\n"
-            "  {\"q\": \"What is ..?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": 2}\n"
-            "]\n\n"
-            f"Generate {count} questions now about \"{topic}\" at {difficulty} difficulty. "
-            "Return ONLY the JSON array, nothing else."
-        )
+        if mode == "custom" and (resume_text or jd_text):
+            # Truncate to ~3000 chars each to stay within token limits
+            r_snippet = resume_text[:3000] if resume_text else ""
+            j_snippet = jd_text[:3000]     if jd_text     else ""
+            context_block = ""
+            if r_snippet:
+                context_block += f"--- RESUME ---\n{r_snippet}\n\n"
+            if j_snippet:
+                context_block += f"--- JOB DESCRIPTION ---\n{j_snippet}\n\n"
+            prompt = (
+                f"You are a technical interview coach. A candidate has provided their resume and/or a job description below.\n\n"
+                f"{context_block}"
+                f"Based ONLY on the skills, technologies, and topics mentioned in the above documents, "
+                f"generate exactly {count} multiple choice questions at {difficulty} difficulty "
+                f"that would help the candidate prepare for this specific role.\n"
+                f"Focus on topics that appear in the job description but may be weak or missing from the resume.\n\n"
+                "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
+                "Each element must have exactly these keys:\n"
+                "  \"q\": question text (string)\n"
+                "  \"options\": exactly 4 answer choices (array of 4 strings)\n"
+                "  \"answer\": zero-based index of the correct option (integer 0-3)\n\n"
+                "Example:\n"
+                "[\n"
+                "  {\"q\": \"What is ..?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": 2}\n"
+                "]\n\n"
+                f"Generate {count} questions now. Return ONLY the JSON array, nothing else."
+            )
+        else:
+            prompt = (
+                f"Generate exactly {count} multiple choice questions about \"{topic}\" "
+                f"at {difficulty} difficulty for a technical interview preparation test.\n\n"
+                "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
+                "Each element must have exactly these keys:\n"
+                "  \"q\": question text (string)\n"
+                "  \"options\": exactly 4 answer choices (array of 4 strings)\n"
+                "  \"answer\": zero-based index of the correct option (integer 0-3)\n\n"
+                "Example:\n"
+                "[\n"
+                "  {\"q\": \"What is ..?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": 2}\n"
+                "]\n\n"
+                f"Generate {count} questions now about \"{topic}\" at {difficulty} difficulty. "
+                "Return ONLY the JSON array, nothing else."
+            )
 
         completion = client.chat.completions.create(
             model="openai/gpt-oss-120b",

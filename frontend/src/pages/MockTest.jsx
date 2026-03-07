@@ -145,7 +145,14 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
 export default function MockTest() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { topic = 'Data Structures', difficulty = 'Medium', count = 15 } = location.state || {};
+  const {
+    topic = 'Data Structures',
+    difficulty = 'Medium',
+    count = 15,
+    mode = 'standard',
+    resumeText = '',
+    jdText = '',
+  } = location.state || {};
 
   // 'cam-check' → 'test' (questions loading + active)
   const [phase, setPhase]         = useState('cam-check');
@@ -198,7 +205,7 @@ export default function MockTest() {
       const res = await fetch('/api/generate-mock-test/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, difficulty, count }),
+        body: JSON.stringify({ topic, difficulty, count, mode, resume_text: resumeText, jd_text: jdText }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
