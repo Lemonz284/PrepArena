@@ -246,22 +246,37 @@ export default function MockTest() {
         if (!vid) return;
 
         const startCapture = () => {
-          frameTimerRef.current = setInterval(() => {
+          const INTERVAL = 500; // ms between frame completions — prevents backend pileup
+          const captureLoop = () => {
             const sid = procSidRef.current;
             const v = videoRef.current;
-            const canvas = canvasRef.current;  // read fresh every tick
-            if (!sid || !canvas || !v || v.readyState < 2) return;
-            canvas.width  = v.videoWidth  || 320;
-            canvas.height = v.videoHeight || 240;
+            const canvas = canvasRef.current;
+            if (!sid || !canvas || !v || v.readyState < 2) {
+              frameTimerRef.current = setTimeout(captureLoop, INTERVAL);
+              return;
+            }
+            // Cap to 480×360 — slightly above minimum for better detection accuracy
+            const scale = Math.min(1, 480 / (v.videoWidth || 480));
+            canvas.width  = Math.round((v.videoWidth  || 480) * scale);
+            canvas.height = Math.round((v.videoHeight || 360) * scale);
             canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
             canvas.toBlob(blob => {
-              if (!blob || !procSidRef.current) return;
+              if (!blob || !procSidRef.current) {
+                frameTimerRef.current = setTimeout(captureLoop, INTERVAL);
+                return;
+              }
               const fd = new FormData();
               fd.append('session_id', procSidRef.current);
               fd.append('frame', blob, 'frame.jpg');
-              fetch('/api/proctoring/frame/', { method: 'POST', body: fd }).catch(() => {});
-            }, 'image/jpeg', 0.7);
-          }, 1500);
+              // Schedule next frame only after this POST resolves — prevents pileup
+              fetch('/api/proctoring/frame/', { method: 'POST', body: fd })
+                .catch(() => {})
+                .finally(() => {
+                  frameTimerRef.current = setTimeout(captureLoop, INTERVAL);
+                });
+            }, 'image/jpeg', 0.5);
+          };
+          captureLoop();
         };
 
         // By the time the fetch resolves the video is usually already playing;
@@ -275,7 +290,7 @@ export default function MockTest() {
       .catch(() => {});
 
     return () => {
-      clearInterval(frameTimerRef.current);
+      clearTimeout(frameTimerRef.current);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
         streamRef.current = null;
@@ -289,7 +304,7 @@ export default function MockTest() {
     const finalScore = questions.filter((q, i) => answers[i] === q.answer).length;
 
     // Stop frame capture timer
-    clearInterval(frameTimerRef.current);
+    clearTimeout(frameTimerRef.current);
 
     // Wait for any in-flight frame POSTs to land before closing the session.
     // Without this, frames already sent but not yet received by Django arrive

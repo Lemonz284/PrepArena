@@ -13,10 +13,15 @@ stop_session(sid)             -> dict  finalise and return the verdict
 """
 
 import os
+import queue
 import cv2
 import numpy as np
 import threading
 import uuid
+try:
+    import joblib
+except ImportError:
+    joblib = None
 
 # ── Cascade paths ─────────────────────────────────────────────────────────────
 _ML_DIR = os.path.join(
@@ -39,6 +44,12 @@ _lock = threading.Lock()
 _face_cas    = cv2.CascadeClassifier(_FACE_XML)
 _eye_cas     = cv2.CascadeClassifier(_EYE_XML)
 _profile_cas = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
+
+# ── Load trained XGB model (optional — falls back to thresholds if missing) ───
+_MODEL_PATH = os.path.join(_ML_DIR, 'proctor_model.pkl')
+_model = None
+if joblib and os.path.isfile(_MODEL_PATH):
+    _model = joblib.load(_MODEL_PATH)
 
 
 # ── Helper functions ──────────────────────────────────────────────────────────
@@ -88,23 +99,34 @@ def _iou(a, b):
     return inter / union if union else 0
 
 
+_MAX_WIDTH = 320  # downscale frames to this width before detection
+
+
 def _analyse_frame(frame_bgr, tracked: list):
     """Run face + gaze detection on one decoded frame. Returns (new_tracked, face_count, is_away)."""
-    gray  = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-    faces = _face_cas.detectMultiScale(gray, 1.1, 6, minSize=(60, 60), maxSize=(400, 400))
+    h_orig, w_orig = frame_bgr.shape[:2]
+    scale = _MAX_WIDTH / w_orig if w_orig > _MAX_WIDTH else 1.0
+    if scale < 1.0:
+        small = cv2.resize(frame_bgr, (int(w_orig * scale), int(h_orig * scale)), interpolation=cv2.INTER_LINEAR)
+    else:
+        small = frame_bgr
+
+    gray  = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    # scaleFactor 1.2 (vs 1.1) roughly halves the number of scales checked
+    faces = _face_cas.detectMultiScale(gray, 1.2, 5, minSize=(40, 40), maxSize=(280, 280))
 
     if len(faces) == 0 and not _profile_cas.empty():
-        faces = _profile_cas.detectMultiScale(gray, 1.1, 6, minSize=(60, 60))
+        faces = _profile_cas.detectMultiScale(gray, 1.2, 4, minSize=(40, 40))
         if len(faces) == 0:
             flipped = cv2.flip(gray, 1)
-            ff2 = _profile_cas.detectMultiScale(flipped, 1.1, 6, minSize=(60, 60))
+            ff2 = _profile_cas.detectMultiScale(flipped, 1.2, 4, minSize=(40, 40))
             if len(ff2) > 0:
                 cols = gray.shape[1]
                 faces = tuple((cols - x - w, y, w, h) for (x, y, w, h) in ff2)
 
     validated = [
         (x, y, w, h) for (x, y, w, h) in faces
-        if _valid_ar(w, h) and _is_skin(frame_bgr, x, y, w, h)
+        if _valid_ar(w, h) and _is_skin(small, x, y, w, h)
     ]
 
     MIN_CONSECUTIVE = 3
@@ -152,6 +174,9 @@ def _analyse_frame(frame_bgr, tracked: list):
 
 # ── Session class ─────────────────────────────────────────────────────────────
 
+_SENTINEL = object()  # signals the worker thread to stop
+
+
 class _Session:
     def __init__(self, sid: str):
         self.sid                 = sid
@@ -163,23 +188,44 @@ class _Session:
         self.multi_face_frames   = 0
         self.frames_received     = 0
 
+        # Background worker: decodes + analyses frames off the request thread
+        self._q: queue.Queue = queue.Queue(maxsize=30)  # drop frames if too far behind
+        self._worker = threading.Thread(target=self._run, daemon=True)
+        self._worker.start()
+
+    def _run(self):
+        while True:
+            item = self._q.get()
+            if item is _SENTINEL:
+                break
+            jpeg_bytes = item
+            arr   = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+            frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if frame is None:
+                continue
+            new_tracked, face_count, is_away = _analyse_frame(frame, self._tracked)
+            with self._lock:
+                self._tracked = new_tracked
+                self.total_frames += 1
+                if face_count == 0:
+                    self.no_face_frames += 1
+                else:
+                    if face_count > 1:
+                        self.multi_face_frames += 1
+                    if is_away:
+                        self.looking_away_frames += 1
+
     def push(self, jpeg_bytes: bytes):
-        arr   = np.frombuffer(jpeg_bytes, dtype=np.uint8)
-        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if frame is None:
-            return
         with self._lock:
             self.frames_received += 1
-            new_tracked, face_count, is_away = _analyse_frame(frame, self._tracked)
-            self._tracked = new_tracked
-            self.total_frames += 1
-            if face_count == 0:
-                self.no_face_frames += 1
-            else:
-                if face_count > 1:
-                    self.multi_face_frames += 1
-                if is_away:
-                    self.looking_away_frames += 1
+        try:
+            self._q.put_nowait(jpeg_bytes)  # non-blocking; drop frame if queue full
+        except queue.Full:
+            pass  # shed load rather than block the HTTP request
+
+    def _stop_worker(self):
+        self._q.put(_SENTINEL)
+        self._worker.join(timeout=5)
 
     def result(self) -> dict:
         with self._lock:
@@ -201,10 +247,22 @@ class _Session:
                 flags.append(f'Not looking at screen {away_pct}% of the time')
             if multi_pct > MULTI_FACE_THRESHOLD:
                 flags.append(f'Multiple people detected in {multi_pct}% of frames')
+
+            # Use trained XGB model for verdict if available
+            if _model is not None:
+                import numpy as _np
+                X = _np.array([[face_not_pct, away_pct, multi_pct]])
+                cheating_prob = float(_model.predict_proba(X)[0, 1])
+                cheating = cheating_prob >= 0.65
+            else:
+                cheating_prob = None
+                cheating = bool(flags)
+
             return {
-                'cheating': bool(flags), 'camera_available': True,
+                'cheating': cheating, 'camera_available': True,
                 'face_not_in_frame_pct': face_not_pct, 'not_looking_pct': away_pct,
                 'multi_face_pct': multi_pct, 'total_frames': tf, 'flags': flags,
+                'cheating_probability': cheating_prob,
             }
 
 
@@ -232,4 +290,5 @@ def stop_session(sid: str) -> dict | None:
         session = _sessions.pop(sid, None)
     if session is None:
         return None
+    session._stop_worker()  # drain the queue before computing result
     return session.result()
