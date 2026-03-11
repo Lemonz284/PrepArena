@@ -33,7 +33,7 @@ _EYE_XML   = os.path.join(_ML_DIR, 'haarcascade_eye.xml')
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 FACE_MISSING_THRESHOLD = 15.0
-LOOK_AWAY_THRESHOLD    = 20.0
+LOOK_AWAY_THRESHOLD    = 25.0   # raised: brief natural drift shouldn't be suspicious
 MULTI_FACE_THRESHOLD   =  5.0
 
 # ── Session registry ──────────────────────────────────────────────────────────
@@ -72,8 +72,13 @@ def _detect_gaze(eye_roi_gray):
     px = int(M['m10'] / M['m00'])
     py = int(M['m01'] / M['m00'])
     rx, ry = px / w, py / h
-    h_dir = 'right' if rx < 0.38 else ('left' if rx > 0.62 else 'center')
-    v_dir = 'up'    if ry < 0.35 else ('down' if ry > 0.65 else 'center')
+    # Wide centre zones so normal micro-movements and brief keyboard/notebook
+    # glances don't get flagged. Only clearly deliberate gaze-aways count.
+    # Horizontal centre: 0.28 – 0.72  (was 0.38 – 0.62)
+    # Vertical   centre: 0.22 – 0.80  (down threshold at 0.80 — very lenient
+    #                    so looking down at keyboard/notes is forgiven)
+    h_dir = 'right' if rx < 0.28 else ('left' if rx > 0.72 else 'center')
+    v_dir = 'up'    if ry < 0.22 else ('down' if ry > 0.80 else 'center')
     return (h_dir, v_dir)
 
 
@@ -112,17 +117,28 @@ def _analyse_frame(frame_bgr, tracked: list):
         small = frame_bgr
 
     gray  = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-    # scaleFactor 1.2 (vs 1.1) roughly halves the number of scales checked
-    faces = _face_cas.detectMultiScale(gray, 1.2, 5, minSize=(40, 40), maxSize=(280, 280))
 
-    if len(faces) == 0 and not _profile_cas.empty():
-        faces = _profile_cas.detectMultiScale(gray, 1.2, 4, minSize=(40, 40))
-        if len(faces) == 0:
-            flipped = cv2.flip(gray, 1)
-            ff2 = _profile_cas.detectMultiScale(flipped, 1.2, 4, minSize=(40, 40))
-            if len(ff2) > 0:
-                cols = gray.shape[1]
-                faces = tuple((cols - x - w, y, w, h) for (x, y, w, h) in ff2)
+    # ── Frontal faces (minNeighbors=4 catches more faces than 5; no maxSize so
+    #    large nearby faces aren't silently discarded) ──────────────────────────
+    raw_frontal = _face_cas.detectMultiScale(gray, 1.2, 4, minSize=(40, 40))
+    faces: list[tuple] = [tuple(f) for f in raw_frontal] if len(raw_frontal) > 0 else []
+
+    # ── Profile faces — run ALWAYS (not only as fallback) so a second person
+    #    partially turned away is detected even when a frontal face is present.
+    #    Both left-profile and right-profile (via horizontal flip) are checked.
+    #    A profile detection is only added when it doesn't overlap a confirmed
+    #    frontal face (IoU < 0.3), preventing the same face being counted twice. ──
+    if not _profile_cas.empty():
+        cols = gray.shape[1]
+        for fp_arr, mirror in [
+            (_profile_cas.detectMultiScale(gray, 1.2, 3, minSize=(40, 40)), False),
+            (_profile_cas.detectMultiScale(cv2.flip(gray, 1), 1.2, 3, minSize=(40, 40)), True),
+        ]:
+            if len(fp_arr) > 0:
+                for (x, y, w, h) in fp_arr:
+                    pf = (cols - x - w, y, w, h) if mirror else (x, y, w, h)
+                    if all(_iou(pf, ff) < 0.3 for ff in faces):
+                        faces.append(pf)
 
     validated = [
         (x, y, w, h) for (x, y, w, h) in faces
@@ -194,6 +210,11 @@ class _Session:
         self._worker.start()
 
     def _run(self):
+        # Require this many consecutive away frames before the counter increments.
+        # Prevents blinks, eye-detection hiccups, and brief keyboard glances from
+        # inflating the "not looking at screen" percentage.
+        _AWAY_STREAK_REQ = 4
+        away_streak = 0
         while True:
             item = self._q.get()
             if item is _SENTINEL:
@@ -208,12 +229,19 @@ class _Session:
                 self._tracked = new_tracked
                 self.total_frames += 1
                 if face_count == 0:
+                    away_streak = 0
                     self.no_face_frames += 1
                 else:
                     if face_count > 1:
                         self.multi_face_frames += 1
                     if is_away:
-                        self.looking_away_frames += 1
+                        away_streak += 1
+                        # Only count once the streak crosses the threshold, then
+                        # count every subsequent consecutive away frame normally.
+                        if away_streak >= _AWAY_STREAK_REQ:
+                            self.looking_away_frames += 1
+                    else:
+                        away_streak = 0
 
     def push(self, jpeg_bytes: bytes):
         with self._lock:
