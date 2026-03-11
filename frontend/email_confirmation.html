@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrepArena — Schedule Confirmation</title>
+</head>
+
+<!--
+  ============================================================
+  PREPARENA — SCHEDULE CONFIRMATION EMAIL
+  ------------------------------------------------------------
+  Send this immediately when the user schedules a session.
+
+  DYNAMIC PLACEHOLDERS (replace at send time in backend):
+    {{USER_NAME}}           – recipient's first name
+    {{SESSION_TYPE}}        – "Mock Test" or "AI Interview"
+    {{SESSION_TOPIC}}       – e.g. "Data Structures", "System Design"
+    {{SESSION_DIFFICULTY}}  – "Easy" / "Medium" / "Hard"  (Mock Test only;
+                               remove that table row for AI Interview)
+    {{SESSION_DATE}}        – e.g. "Monday, 9 March 2026"
+    {{DASHBOARD_URL}}       – absolute URL to user's dashboard
+  ============================================================
+-->
+
+<body style="margin:0;padding:0;background:#f0ece4;font-family:Arial,Helvetica,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0ece4;padding:36px 0;">
+<tr><td align="center">
+
+  <!-- CARD -->
+  <table width="600" cellpadding="0" cellspacing="0"
+    style="background:#fffdf9;border-radius:10px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.10);">
+
+    <!-- BANNER IMAGE -->
+    <tr>
+      <td style="padding:0;line-height:0;">
+        <img src="preparena-email-banner.png"
+             width="600"
+             alt="PrepArena"
+             style="display:block;width:100%;max-width:600px;border:0;">
+      </td>
+    </tr>
+
+    <!-- HERO -->
+    <tr>
+      <td style="padding:40px 40px 6px 40px;text-align:center;">
+        <span style="display:inline-block;background:#edfbf0;border:1.5px solid #6ee7a0;border-radius:20px;padding:5px 16px;font-size:12px;font-weight:700;color:#1a7a42;letter-spacing:0.6px;text-transform:uppercase;">&#10003; Confirmed</span>
+        <h1 style="margin:18px 0 0 0;font-size:30px;font-weight:800;color:#1a1a2e;line-height:1.3;">
+          Your {{SESSION_TYPE}} is scheduled!
+        </h1>
+        <p style="margin:14px 0 0 0;font-size:16px;color:#6b6455;line-height:1.65;">
+          Hi <strong style="color:#1a1a2e;">{{USER_NAME}}</strong> &mdash; your session is locked in. Here&apos;s a summary of what&apos;s coming up:
+        </p>
+      </td>
+    </tr>
+
+    <!-- SESSION DETAILS CARD -->
+    <tr>
+      <td style="padding:28px 40px 20px 40px;">
+        <table width="100%" cellpadding="0" cellspacing="0"
+          style="border:1.5px solid #e3d9cb;border-radius:8px;overflow:hidden;">
+
+          <tr style="background:#f5efe6;">
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:13px;color:#a0917e;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;" colspan="2">Session Details</td>
+          </tr>
+
+          <tr>
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:13px;color:#a0917e;width:130px;">Session Type</td>
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:14px;font-weight:700;color:#1a1a2e;">{{SESSION_TYPE}}</td>
+          </tr>
+
+          <tr>
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:13px;color:#a0917e;">Topic</td>
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:14px;font-weight:700;color:#1a1a2e;">{{SESSION_TOPIC}}</td>
+          </tr>
+
+          <!-- Remove this row for AI Interview (no difficulty) -->
+          <tr>
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:13px;color:#a0917e;">Difficulty</td>
+            <td style="padding:13px 20px;border-bottom:1px solid #e3d9cb;font-size:14px;font-weight:700;color:#1a1a2e;">{{SESSION_DIFFICULTY}}</td>
+          </tr>
+
+          <tr>
+            <td style="padding:13px 20px;font-size:13px;color:#a0917e;">Scheduled For</td>
+            <td style="padding:13px 20px;font-size:14px;font-weight:700;color:#1a1a2e;">{{SESSION_DATE}}</td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+
+    <!-- REMINDER NOTE -->
+    <tr>
+      <td style="padding:4px 40px 20px 40px;text-align:center;">
+        <p style="margin:0;font-size:13px;color:#9ca3af;">
+          &#128276;&nbsp; We&apos;ll send you a reminder <strong>24 hours before</strong> your session.
+        </p>
+      </td>
+    </tr>
+
+    <!-- CTA -->
+    <tr>
+      <td style="padding:4px 40px 40px 40px;text-align:center;">
+        <a href="{{DASHBOARD_URL}}"
+          style="display:inline-block;background:#facc15;color:#0f0f1a;text-decoration:none;
+                 padding:15px 40px;border-radius:30px;font-weight:800;font-size:15px;letter-spacing:0.3px;">
+          Go to My Dashboard &rarr;
+        </a>
+      </td>
+    </tr>
+
+    <!-- QUICK TIPS -->
+    <tr>
+      <td style="padding:0 40px 36px 40px;">
+        <p style="margin:0 0 14px 0;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;">Quick prep tips</p>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="32%" style="text-align:center;padding:16px 10px;background:#f5efe6;border-radius:8px;vertical-align:top;">
+              <div style="font-size:24px;">&#128196;</div>
+              <p style="margin:8px 0 0 0;font-size:13px;font-weight:700;color:#1a1a2e;">Review Notes</p>
+              <p style="margin:5px 0 0 0;font-size:12px;color:#6b6455;line-height:1.5;">Brush up on key concepts the night before.</p>
+            </td>
+            <td width="2%"></td>
+            <td width="32%" style="text-align:center;padding:16px 10px;background:#f5efe6;border-radius:8px;vertical-align:top;">
+              <div style="font-size:24px;">&#128172;</div>
+              <p style="margin:8px 0 0 0;font-size:13px;font-weight:700;color:#1a1a2e;">Think Out Loud</p>
+              <p style="margin:5px 0 0 0;font-size:12px;color:#6b6455;line-height:1.5;">Narrate your thinking during the session.</p>
+            </td>
+            <td width="2%"></td>
+            <td width="32%" style="text-align:center;padding:16px 10px;background:#f5efe6;border-radius:8px;vertical-align:top;">
+              <div style="font-size:24px;">&#9200;</div>
+              <p style="margin:8px 0 0 0;font-size:13px;font-weight:700;color:#1a1a2e;">Manage Time</p>
+              <p style="margin:5px 0 0 0;font-size:12px;color:#6b6455;line-height:1.5;">Skip &amp; return &mdash; don&apos;t dwell on one question.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+      <td style="padding:22px 40px;background:#ede8df;border-top:1px solid #e3d9cb;text-align:center;">
+        <p style="margin:0;font-size:13px;color:#6b6455;">
+          <strong style="color:#1a1a2e;">PrepArena</strong> &mdash; The smartest way to ace technical interviews.
+        </p>
+        <p style="margin:8px 0 0 0;font-size:11px;color:#a0917e;">
+          &copy; 2026 PrepArena. All rights reserved.
+          &nbsp;&bull;&nbsp;
+          <a href="{{DASHBOARD_URL}}" style="color:#a0917e;text-decoration:underline;">Dashboard</a>
+          &nbsp;&bull;&nbsp;
+          <a href="#" style="color:#a0917e;text-decoration:underline;">Unsubscribe</a>
+        </p>
+      </td>
+    </tr>
+
+  </table>
+  <!-- /CARD -->
+
+</td></tr>
+</table>
+
+</body>
+</html>
