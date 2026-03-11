@@ -4,6 +4,69 @@ import { Loader2, AlertCircle, Clock, ShieldCheck, ShieldAlert, Camera, CameraOf
 import Navbar from '../components/Navbar';
 import './MockTest.css';
 
+function normalizeText(s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function tokenizeForMatch(s) {
+  return normalizeText(s)
+    .replace(/[^a-z0-9_#@.+*\-\/=<>:(){}\[\],]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function unique(arr) {
+  return [...new Set(arr)];
+}
+
+function tokenOverlapRatio(a, b) {
+  const sa = new Set(unique(tokenizeForMatch(a)));
+  const sb = new Set(unique(tokenizeForMatch(b)));
+  if (sa.size === 0 || sb.size === 0) return 0;
+  let inter = 0;
+  sa.forEach((t) => {
+    if (sb.has(t)) inter += 1;
+  });
+  return inter / Math.max(sa.size, sb.size);
+}
+
+function scoreTextAnswer(question, userText) {
+  const user = normalizeText(userText);
+  if (!user) {
+    return { points: 0, keywordRatio: 0, overlapRatio: 0 };
+  }
+
+  const expected = normalizeText(question.expected_answer);
+  const keywords = Array.isArray(question.expected_keywords)
+    ? question.expected_keywords.map((k) => normalizeText(k)).filter(Boolean)
+    : [];
+
+  const keywordHits = keywords.filter((k) => user.includes(k)).length;
+  const keywordRatio = keywords.length > 0 ? keywordHits / keywords.length : 0;
+  const overlapRatio = tokenOverlapRatio(expected, user);
+
+  // Full credit if answer is effectively correct.
+  if (expected && (user === expected || user.includes(expected) || expected.includes(user) && user.length >= 12)) {
+    return { points: 1, keywordRatio, overlapRatio };
+  }
+  if (keywordRatio >= 0.8 || (keywordRatio >= 0.7 && overlapRatio >= 0.6)) {
+    return { points: 1, keywordRatio, overlapRatio };
+  }
+
+  // Partial credit if user demonstrates 50-60%+ matching code/keywords.
+  if (keywordRatio >= 0.55 || overlapRatio >= 0.6) {
+    return { points: 0.5, keywordRatio, overlapRatio };
+  }
+
+  return { points: 0, keywordRatio, overlapRatio };
+}
+
+function isAnswered(question, answerValue) {
+  if (!question) return false;
+  if (question.type === 'text') return String(answerValue || '').trim().length > 0;
+  return answerValue !== undefined;
+}
+
 /* ── Loading screen ── */
 function LoadingScreen({ topic, difficulty }) {
   const [dots, setDots] = useState('');
@@ -308,7 +371,24 @@ export default function MockTest() {
   const handleFinish = useCallback(async () => {
     if (finished) return;
     setFinished(true);
-    const finalScore = questions.filter((q, i) => answers[i] === q.answer).length;
+
+    const questionScores = {};
+    let finalScore = 0;
+    questions.forEach((q, i) => {
+      if (q.type === 'text') {
+        const evalResult = scoreTextAnswer(q, answers[i]);
+        questionScores[i] = evalResult;
+        finalScore += evalResult.points;
+      } else {
+        const correct = answers[i] === q.answer;
+        questionScores[i] = {
+          points: correct ? 1 : 0,
+          keywordRatio: null,
+          overlapRatio: null,
+        };
+        finalScore += correct ? 1 : 0;
+      }
+    });
 
     // Stop frame capture timer
     clearTimeout(frameTimerRef.current);
@@ -342,7 +422,17 @@ export default function MockTest() {
     }
 
     navigate('/dashboard/mock-results', {
-      state: { questions, answers, score: finalScore, topic, difficulty, timeTaken: questions.length * 90 - timeLeft, proctor: procResult },
+      state: {
+        questions,
+        answers,
+        score: Number(finalScore.toFixed(2)),
+        maxScore: questions.length,
+        questionScores,
+        topic,
+        difficulty,
+        timeTaken: questions.length * 90 - timeLeft,
+        proctor: procResult,
+      },
     });
   }, [finished, questions, answers, navigate, topic, difficulty, timeLeft]);
 
@@ -387,7 +477,11 @@ export default function MockTest() {
     setAnswers((prev) => ({ ...prev, [current]: idx }));
   }
 
-  const answered = Object.keys(answers).length;
+  function setTextAnswer(value) {
+    setAnswers((prev) => ({ ...prev, [current]: value }));
+  }
+
+  const answered = questions.reduce((acc, q, i) => acc + (isAnswered(q, answers[i]) ? 1 : 0), 0);
   const progress = ((current + 1) / questions.length) * 100;
 
   return (
@@ -423,18 +517,31 @@ export default function MockTest() {
           <div className="test-q-counter">Question {current + 1} of {questions.length}</div>
           <h2 className="test-q-text">{questions[current]?.q}</h2>
 
-          <div className="test-options">
-            {questions[current]?.options.map((opt, idx) => (
-              <button
-                key={idx}
-                className={`test-option ${answers[current] === idx ? 'selected' : ''}`}
-                onClick={() => selectAnswer(idx)}
-              >
-                <span className="opt-letter">{String.fromCharCode(65 + idx)}</span>
-                {opt}
-              </button>
-            ))}
-          </div>
+          {questions[current]?.type === 'text' ? (
+            <div className="test-text-wrap">
+              <div className="test-text-label">Write your answer (syntax/code/plain text):</div>
+              <textarea
+                className="test-textarea"
+                rows={8}
+                value={answers[current] || ''}
+                onChange={(e) => setTextAnswer(e.target.value)}
+                placeholder="Type your answer here..."
+              />
+            </div>
+          ) : (
+            <div className="test-options">
+              {questions[current]?.options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  className={`test-option ${answers[current] === idx ? 'selected' : ''}`}
+                  onClick={() => selectAnswer(idx)}
+                >
+                  <span className="opt-letter">{String.fromCharCode(65 + idx)}</span>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -451,7 +558,7 @@ export default function MockTest() {
             {questions.map((_, i) => (
               <button
                 key={i}
-                className={`dot-btn ${i === current ? 'dot-current' : ''} ${answers[i] !== undefined ? 'dot-answered' : ''}`}
+                className={`dot-btn ${i === current ? 'dot-current' : ''} ${isAnswered(questions[i], answers[i]) ? 'dot-answered' : ''}`}
                 onClick={() => setCurrent(i)}
               />
             ))}

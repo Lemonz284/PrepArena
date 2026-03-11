@@ -160,6 +160,38 @@
 
 .test-option.selected .opt-letter { background: var(--yellow); color: #080d18; }
 
+.test-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.test-text-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.test-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 170px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 0.9rem 1rem;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.test-textarea:focus {
+  outline: none;
+  border-color: var(--yellow);
+  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.15);
+}
+
 /* Navigation */
 .test-nav {
   display: flex;

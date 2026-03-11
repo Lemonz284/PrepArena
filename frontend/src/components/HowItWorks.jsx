@@ -20,7 +20,7 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <section className="hiw">
+    <section id="about" className="hiw">
       <div className="hiw-inner">
         <div className="section-label">How it works</div>
         <h2 className="section-title">Three steps to interview confidence</h2>

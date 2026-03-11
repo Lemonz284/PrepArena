@@ -1,11 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 function AuthPage() {
+  const location = useLocation();
+  const modeFromQuery = new URLSearchParams(location.search).get("mode");
+  const startInSignup = modeFromQuery === "signup";
 
-  const [isLogin, setIsLogin] = useState(true)
+  const [isLogin, setIsLogin] = useState(!startInSignup)
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+
+  useEffect(() => {
+    setIsLogin(!startInSignup);
+  }, [startInSignup]);
 
   const loginUser = async () => {
 

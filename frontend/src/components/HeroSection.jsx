@@ -27,7 +27,7 @@ export default function HeroSection() {
           </p>
 
           <div className="hero-ctas">
-            <Link to="/signup" className="cta-primary">Start for free</Link>
+            <Link to="/login?mode=signup" className="cta-primary">Start for free</Link>
             <Link to="/dashboard" className="cta-secondary">Open dashboard</Link>
           </div>
 

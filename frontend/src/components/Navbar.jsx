@@ -1,9 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
 import './Navbar.css';
 
-const username = localStorage.getItem("username")
 export default function Navbar() {
   const location = useLocation();
+  const username = localStorage.getItem('username');
+  const isDashboardRoute = location.pathname.startsWith('/dashboard');
+  const aboutActive = location.pathname === '/' && location.hash === '#about';
 
   return (
     <nav className="navbar">
@@ -21,13 +23,13 @@ export default function Navbar() {
 
         <ul className="navbar-links">
           <li>
-            <Link to="/about" className={`nav-link ${location.pathname === '/about' ? 'active' : ''}`}>
+            <Link to="/#about" className={`nav-link ${aboutActive ? 'active' : ''}`}>
               About
             </Link>
           </li>
           <li>
-            <Link to="/dashboard" className={`nav-link ${location.pathname.startsWith('/dashboard') ? 'active' : ''}`}>
-              Dashboard
+            <Link to={isDashboardRoute ? '/' : '/dashboard'} className={`nav-link ${isDashboardRoute ? 'active' : ''}`}>
+              {isDashboardRoute ? 'Home' : 'Dashboard'}
             </Link>
           </li>
         </ul>
@@ -56,7 +58,7 @@ export default function Navbar() {
           ) : (
             <>
               <Link to="/login" className="btn-login">Log in</Link>
-              <Link to="/signup" className="btn-signup">Get started</Link>
+              <Link to="/login?mode=signup" className="btn-signup">Get started</Link>
             </>
           )}
 

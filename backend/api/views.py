@@ -28,11 +28,30 @@ def generate_mock_test(request):
         resume_text = (body.get("resume_text") or "").strip()
         jd_text     = (body.get("jd_text")     or "").strip()
 
-        api_key = os.getenv("GROQ_API_KEY", "")
-        if not api_key or api_key == "gsk_your_actual_key_here":
-            return JsonResponse({"error": "GROQ_API_KEY not configured. Add it to backend/.env"}, status=500)
+        primary_key = os.getenv("GROQ_API_KEY", "").strip()
+        fallback_key = os.getenv("GROQ_API_KEY2", "").strip()
 
-        client = Groq(api_key=api_key)
+        candidate_keys = []
+        for k in (primary_key, fallback_key):
+            if k and k != "gsk_your_actual_key_here" and k not in candidate_keys:
+                candidate_keys.append(k)
+
+        if not candidate_keys:
+            return JsonResponse({"error": "No valid Groq API key configured. Add GROQ_API_KEY or GROQ_API_KEY2 in backend/.env"}, status=500)
+
+        schema_block = (
+            "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
+            "Each element MUST be one of these two shapes:\n"
+            "1) MCQ question:\n"
+            "   {\"type\": \"mcq\", \"q\": string, \"options\": [4 strings], \"answer\": 0-3}\n"
+            "2) Text/code question:\n"
+            "   {\"type\": \"text\", \"q\": string, \"expected_answer\": string, \"expected_keywords\": [strings]}\n\n"
+            "Rules:\n"
+            "- Generate exactly the requested count.\n"
+            "- Mix question types: around 70% mcq and 30% text/code/syntax questions.\n"
+            "- For text/code questions, expected_keywords must include 4-10 essential words/tokens used to score answers.\n"
+            "- Do not include any keys other than those described above.\n"
+        )
 
         if mode == "custom" and (resume_text or jd_text):
             # Truncate to ~3000 chars each to stay within token limits
@@ -47,43 +66,38 @@ def generate_mock_test(request):
                 f"You are a technical interview coach. A candidate has provided their resume and/or a job description below.\n\n"
                 f"{context_block}"
                 f"Based ONLY on the skills, technologies, and topics mentioned in the above documents, "
-                f"generate exactly {count} multiple choice questions at {difficulty} difficulty "
+                f"generate exactly {count} interview-prep questions at {difficulty} difficulty "
                 f"that would help the candidate prepare for this specific role.\n"
                 f"Focus on topics that appear in the job description but may be weak or missing from the resume.\n\n"
-                "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
-                "Each element must have exactly these keys:\n"
-                "  \"q\": question text (string)\n"
-                "  \"options\": exactly 4 answer choices (array of 4 strings)\n"
-                "  \"answer\": zero-based index of the correct option (integer 0-3)\n\n"
-                "Example:\n"
-                "[\n"
-                "  {\"q\": \"What is ..?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": 2}\n"
-                "]\n\n"
+                f"{schema_block}\n"
                 f"Generate {count} questions now. Return ONLY the JSON array, nothing else."
             )
         else:
             prompt = (
-                f"Generate exactly {count} multiple choice questions about \"{topic}\" "
+                f"Generate exactly {count} technical interview prep questions about \"{topic}\" "
                 f"at {difficulty} difficulty for a technical interview preparation test.\n\n"
-                "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
-                "Each element must have exactly these keys:\n"
-                "  \"q\": question text (string)\n"
-                "  \"options\": exactly 4 answer choices (array of 4 strings)\n"
-                "  \"answer\": zero-based index of the correct option (integer 0-3)\n\n"
-                "Example:\n"
-                "[\n"
-                "  {\"q\": \"What is ..?\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": 2}\n"
-                "]\n\n"
+                f"{schema_block}\n"
                 f"Generate {count} questions now about \"{topic}\" at {difficulty} difficulty. "
                 "Return ONLY the JSON array, nothing else."
             )
 
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_completion_tokens=4096,
-        )
+        completion = None
+        last_err = None
+        for api_key in candidate_keys:
+            try:
+                client = Groq(api_key=api_key)
+                completion = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_completion_tokens=4096,
+                )
+                break
+            except Exception as err:
+                last_err = err
+
+        if completion is None:
+            raise RuntimeError(f"Groq request failed for all configured keys: {last_err}")
 
         raw = completion.choices[0].message.content.strip()
 
@@ -101,18 +115,46 @@ def generate_mock_test(request):
         # Validate each question
         validated = []
         for q in questions_raw:
-            if (
-                isinstance(q.get("q"), str)
-                and isinstance(q.get("options"), list)
-                and len(q["options"]) == 4
-                and isinstance(q.get("answer"), int)
-                and 0 <= q["answer"] <= 3
-            ):
-                validated.append({
-                    "q": q["q"].strip(),
-                    "options": [str(o).strip() for o in q["options"][:4]],
-                    "answer": q["answer"],
-                })
+            q_type = str(q.get("type", "mcq")).strip().lower()
+            q_text = q.get("q")
+            if not isinstance(q_text, str) or not q_text.strip():
+                continue
+
+            # Backward-compatible MCQ validation (works even if model omits type)
+            if q_type == "mcq":
+                options = q.get("options")
+                answer = q.get("answer")
+                if (
+                    isinstance(options, list)
+                    and len(options) == 4
+                    and isinstance(answer, int)
+                    and 0 <= answer <= 3
+                ):
+                    validated.append({
+                        "type": "mcq",
+                        "q": q_text.strip(),
+                        "options": [str(o).strip() for o in options[:4]],
+                        "answer": answer,
+                    })
+                continue
+
+            # Text/code validation
+            if q_type == "text":
+                expected_answer = q.get("expected_answer")
+                keywords = q.get("expected_keywords")
+                if isinstance(expected_answer, str) and isinstance(keywords, list):
+                    cleaned_keywords = []
+                    for k in keywords:
+                        kk = str(k).strip().lower()
+                        if kk and kk not in cleaned_keywords:
+                            cleaned_keywords.append(kk)
+                    if expected_answer.strip() and len(cleaned_keywords) >= 3:
+                        validated.append({
+                            "type": "text",
+                            "q": q_text.strip(),
+                            "expected_answer": expected_answer.strip(),
+                            "expected_keywords": cleaned_keywords[:10],
+                        })
 
         if not validated:
             return JsonResponse({"error": "No valid questions in AI response", "raw": raw[:500]}, status=500)

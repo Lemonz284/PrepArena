@@ -137,6 +137,7 @@
 }
 
 .row-correct { border-left-color: var(--green); }
+.row-partial { border-left-color: var(--yellow); }
 .row-wrong   { border-left-color: var(--red);   }
 
 .res-row-num {
@@ -147,6 +148,7 @@
   color: var(--text-2);
 }
 .num-correct { color: var(--green); }
+.num-partial { color: var(--yellow); }
 .num-wrong   { color: var(--red); }
 
 .res-row-body { flex: 1; }
@@ -170,9 +172,13 @@
   font-weight: 600;
   padding: 0.25rem 0.7rem;
   border-radius: 7px;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .ans-correct { background: var(--green-dim); color: var(--green); }
+.ans-partial { background: var(--yellow-dim); color: var(--yellow); }
 .ans-wrong   { background: var(--red-dim);   color: var(--red);   }
 
 /* Actions */

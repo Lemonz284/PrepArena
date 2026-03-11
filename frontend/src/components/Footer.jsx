@@ -20,7 +20,7 @@ export default function Footer() {
             Join thousands of engineers who used PrepArena to get offers at
             top companies. Start for free today.
           </p>
-          <Link to="/signup" className="cta-banner-btn">
+          <Link to="/login?mode=signup" className="cta-banner-btn">
             Get started for free →
           </Link>
         </div>

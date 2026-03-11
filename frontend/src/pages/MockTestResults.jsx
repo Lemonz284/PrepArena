@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, XCircle, Clock, RotateCcw, LayoutDashboard, ShieldCheck, ShieldAlert, ShieldOff } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, RotateCcw, LayoutDashboard, ShieldCheck, ShieldAlert, ShieldOff, AlertTriangle } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import './MockTestResults.css';
@@ -8,9 +8,9 @@ import './MockTestResults.css';
 export default function MockTestResults() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { questions = [], answers = {}, score = 0, topic = '', difficulty = '', timeTaken = 0, proctor = null } = location.state || {};
+  const { questions = [], answers = {}, score = 0, maxScore = questions.length || 0, questionScores = {}, topic = '', difficulty = '', timeTaken = 0, proctor = null } = location.state || {};
 
-  const total = questions.length;
+  const total = maxScore || questions.length;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
   const mins = Math.floor(timeTaken / 60);
   const secs = timeTaken % 60;
@@ -27,7 +27,7 @@ export default function MockTestResults() {
       id: Date.now(),
       type: 'AI Mock Test',
       topic: topic || 'General',
-      score: `${score}/${total}`,
+      score: `${score.toFixed(1)}/${total}`,
       pct,
       date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       dayKey: now.toISOString().slice(0, 10),
@@ -64,7 +64,7 @@ export default function MockTestResults() {
           <div className="res-hero-info">
             <h1 className="res-title">{passed ? 'Nice work!' : 'Keep practising.'}</h1>
             <p className="res-sub">
-              You scored <strong>{score}/{total}</strong> on <strong>{topic}</strong> ({difficulty})
+              You scored <strong>{score.toFixed(1)}/{total}</strong> on <strong>{topic}</strong> ({difficulty})
             </p>
             <div className="res-meta-row">
               <span className="res-meta-pill"><Clock size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />{mins}m {secs}s</span>
@@ -126,22 +126,41 @@ export default function MockTestResults() {
         <div className="res-breakdown">
           {questions.map((q, i) => {
             const userAns = answers[i];
-            const correct = userAns === q.answer;
+            const qEval = questionScores[i] || { points: userAns === q.answer ? 1 : 0 };
+            const points = qEval.points || 0;
+            const correct = points >= 1;
+            const partial = points > 0 && points < 1;
             return (
-              <div key={i} className={`res-row ${correct ? 'row-correct' : 'row-wrong'}`}>
-                <div className={`res-row-num ${correct ? 'num-correct' : 'num-wrong'}`}>
-                {correct ? <CheckCircle2 size={15} strokeWidth={2} /> : <XCircle size={15} strokeWidth={2} />}
+              <div key={i} className={`res-row ${correct ? 'row-correct' : partial ? 'row-partial' : 'row-wrong'}`}>
+                <div className={`res-row-num ${correct ? 'num-correct' : partial ? 'num-partial' : 'num-wrong'}`}>
+                {correct ? <CheckCircle2 size={15} strokeWidth={2} /> : partial ? <AlertTriangle size={15} strokeWidth={2} /> : <XCircle size={15} strokeWidth={2} />}
               </div>
                 <div className="res-row-body">
                   <p className="res-q-text">Q{i + 1}. {q.q}</p>
                   <div className="res-ans-row">
-                    <span className={`ans-pill ${correct ? 'ans-correct' : 'ans-wrong'}`}>
-                      Your answer: {userAns !== undefined ? q.options[userAns] : 'Not answered'}
+                    <span className={`ans-pill ${correct ? 'ans-correct' : partial ? 'ans-partial' : 'ans-wrong'}`}>
+                      Score: {points.toFixed(1)} / 1.0
                     </span>
-                    {!correct && (
-                      <span className="ans-pill ans-correct">
-                        Correct: {q.options[q.answer]}
-                      </span>
+                    {q.type === 'text' ? (
+                      <>
+                        <span className={`ans-pill ${String(userAns || '').trim() ? 'ans-partial' : 'ans-wrong'}`}>
+                          Your answer: {String(userAns || '').trim() || 'Not answered'}
+                        </span>
+                        <span className="ans-pill ans-correct">
+                          Expected: {q.expected_answer || 'N/A'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={`ans-pill ${correct ? 'ans-correct' : 'ans-wrong'}`}>
+                          Your answer: {userAns !== undefined ? q.options[userAns] : 'Not answered'}
+                        </span>
+                        {!correct && (
+                          <span className="ans-pill ans-correct">
+                            Correct: {q.options[q.answer]}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
