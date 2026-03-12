@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import './Navbar.css';
 
-export default function Navbar() {
+export default function Navbar({ onOpenLogin, onOpenSignup }) {
   const location = useLocation();
   const username = localStorage.getItem('username');
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
@@ -57,8 +57,8 @@ export default function Navbar() {
             </div>
           ) : (
             <>
-              <Link to="/login" className="btn-login">Log in</Link>
-              <Link to="/login?mode=signup" className="btn-signup">Get started</Link>
+              <button className="btn-login" onClick={onOpenLogin}>Log in</button>
+              <button className="btn-signup" onClick={onOpenSignup}>Get started</button>
             </>
           )}
 

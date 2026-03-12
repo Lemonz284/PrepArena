@@ -12,7 +12,7 @@ const CODE_SNIPPET = `class Solution:
             seen[num] = i
         return []`;
 
-export default function HeroSection() {
+export default function HeroSection({ onOpenSignup }) {
   return (
     <section className="hero">
       <div className="hero-inner">
@@ -27,13 +27,13 @@ export default function HeroSection() {
           </p>
 
           <div className="hero-ctas">
-            <Link to="/login?mode=signup" className="cta-primary">Start for free</Link>
+            <button className="cta-primary" onClick={onOpenSignup}>Start for free</button>
             <Link to="/dashboard" className="cta-secondary">Open dashboard</Link>
           </div>
 
           <div className="hero-social-proof">
             <div className="proof-avatars">
-              {['#4e7fff','#f0b429','#34d399','#f87171'].map((c,i) => (
+              {['#4e7fff', '#f0b429', '#34d399', '#f87171'].map((c, i) => (
                 <span key={i} className="proof-avatar" style={{ background: c }} />
               ))}
             </div>

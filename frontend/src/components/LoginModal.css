@@ -1,0 +1,194 @@
+/* ===========================
+   Login Modal — Overlay + Card
+   =========================== */
+
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 9, 15, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: overlayFadeIn 0.25s ease;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---- Card ---- */
+.login-modal-card {
+  position: relative;
+  width: min(92vw, 540px);
+  min-height: 50vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow:
+    0 0 40px rgba(78, 127, 255, 0.12),
+    0 24px 60px rgba(0, 0, 0, 0.5);
+  padding: 48px 44px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: cardSlideIn 0.3s ease;
+}
+
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Top glow accent */
+.login-modal-card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--blue), var(--yellow), transparent);
+  border-radius: 2px;
+}
+
+/* ---- Close button ---- */
+.login-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  font-size: 1.25rem;
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+}
+
+.login-modal-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ---- Heading ---- */
+.login-modal-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.login-modal-subtitle {
+  font-size: 0.92rem;
+  color: var(--text-2);
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+/* ---- Form ---- */
+.login-modal-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-modal-input {
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-modal-input::placeholder {
+  color: var(--text-muted);
+}
+
+.login-modal-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-dim);
+}
+
+/* ---- Submit button ---- */
+.login-modal-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font);
+  cursor: pointer;
+  border: none;
+  margin-top: 6px;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+
+.login-modal-btn:active {
+  transform: scale(0.985);
+}
+
+.login-modal-btn--login {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 0 16px var(--blue-glow);
+}
+
+.login-modal-btn--login:hover {
+  background: var(--blue-dark);
+  box-shadow: 0 4px 24px var(--blue-glow);
+}
+
+.login-modal-btn--signup {
+  background: var(--yellow);
+  color: #080d18;
+  box-shadow: 0 0 16px var(--yellow-glow);
+}
+
+.login-modal-btn--signup:hover {
+  background: var(--yellow-dark);
+  box-shadow: 0 4px 24px var(--yellow-glow);
+}
+
+/* ---- Toggle text ---- */
+.login-modal-toggle {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.login-modal-toggle-link {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 5px;
+  transition: color 0.15s;
+}
+
+.login-modal-toggle-link:hover {
+  color: var(--yellow);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 600px) {
+  .login-modal-card {
+    padding: 36px 24px 32px;
+    width: 94vw;
+    min-height: 45vh;
+    border-radius: 14px;
+  }
+}
