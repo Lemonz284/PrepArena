@@ -5,7 +5,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url,
 ).toString();
-
 /**
  * Extract plain text from a File object (.pdf or .txt / .doc).
  * Returns a string.
