@@ -5,35 +5,6 @@
 
 ---
 
-## Table of Contents
-
-1. [Project Overview](#project-overview)
-2. [Key Features](#key-features)
-3. [Tech Stack](#tech-stack)
-4. [System Architecture](#system-architecture)
-5. [Repository Structure](#repository-structure)
-6. [Module Breakdown](#module-breakdown)
-   - [Backend (Django REST API)](#backend-django-rest-api)
-   - [Frontend (React + Vite SPA)](#frontend-react--vite-spa)
-   - [ML / Proctoring Engine](#ml--proctoring-engine)
-7. [Data Flow & Workflows](#data-flow--workflows)
-   - [Authentication Flow](#authentication-flow)
-   - [Mock Test Workflow](#mock-test-workflow)
-   - [AI Interview Workflow (Current)](#ai-interview-workflow-current)
-   - [Proctoring Workflow](#proctoring-workflow)
-8. [API Reference](#api-reference)
-9. [Database Schema](#database-schema)
-10. [Frontend Routes](#frontend-routes)
-11. [Functional Requirements](#functional-requirements)
-12. [Non-Functional Requirements](#non-functional-requirements)
-13. [User Stories](#user-stories)
-14. [Roadmap — Upcoming Features](#roadmap--upcoming-features)
-    - [Real-Time Voice AI Interview](#real-time-voice-ai-interview)
-    - [User Analytics Dashboard](#user-analytics-dashboard)
-15. [Setup & Installation](#setup--installation)
-16. [Environment Variables](#environment-variables)
-17. [Running the Application](#running-the-application)
-
 ---
 
 ## Project Overview
