@@ -82,7 +82,7 @@ def _detect_gaze(eye_roi_gray):
     return (h_dir, v_dir)
 
 
-def _is_skin(frame_bgr, x, y, w, h, min_pct=0.30):
+def _is_skin(frame_bgr, x, y, w, h, min_pct=0.20):
     roi = frame_bgr[y:y+h, x:x+w]
     if roi.size == 0:
         return False
@@ -118,9 +118,9 @@ def _analyse_frame(frame_bgr, tracked: list):
 
     gray  = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
-    # ── Frontal faces (minNeighbors=4 catches more faces than 5; no maxSize so
-    #    large nearby faces aren't silently discarded) ──────────────────────────
-    raw_frontal = _face_cas.detectMultiScale(gray, 1.2, 4, minSize=(40, 40))
+    # ── Frontal faces (scaleFactor=1.1 is finer than 1.2, catches faces at
+    #    slight angles; minNeighbors=3 is more lenient to reduce false absences) ──
+    raw_frontal = _face_cas.detectMultiScale(gray, 1.1, 3, minSize=(40, 40))
     faces: list[tuple] = [tuple(f) for f in raw_frontal] if len(raw_frontal) > 0 else []
 
     # ── Profile faces — run ALWAYS (not only as fallback) so a second person
@@ -145,7 +145,7 @@ def _analyse_frame(frame_bgr, tracked: list):
         if _valid_ar(w, h) and _is_skin(small, x, y, w, h)
     ]
 
-    MIN_CONSECUTIVE = 3
+    MIN_CONSECUTIVE = 2
     IOU_THRESHOLD   = 0.3
     new_tracked: list[dict] = []
     used = [False] * len(validated)
