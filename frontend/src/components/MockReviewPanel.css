@@ -1,0 +1,85 @@
+.review-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1rem 1rem 1.1rem;
+  position: sticky;
+  top: 1.2rem;
+}
+
+.review-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.8rem;
+}
+
+.review-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.review-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.review-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-2);
+  font-size: 0.86rem;
+}
+
+.review-error {
+  color: var(--red);
+}
+
+.spin {
+  animation: review-spin 0.9s linear infinite;
+}
+
+@keyframes review-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.review-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.review-overview {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.review-block h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.review-block ul {
+  margin: 0;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.review-block li {
+  color: var(--text-2);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}

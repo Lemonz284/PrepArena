@@ -2,9 +2,24 @@
 .res-root { min-height: 100vh; background: var(--bg); }
 
 .res-container {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2.5rem 2rem 5rem;
+}
+
+.res-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.res-main {
+  min-width: 0;
+}
+
+.res-side {
+  min-width: 0;
 }
 
 /* Hero */
@@ -298,4 +313,14 @@
   position: absolute;
   left: 0;
   color: var(--red);
+}
+
+@media (max-width: 980px) {
+  .res-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .res-container {
+    max-width: 800px;
+  }
 }

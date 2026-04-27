@@ -169,6 +169,86 @@ def generate_mock_test(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def generate_mock_test_review(request):
+    try:
+        body = json.loads(request.body)
+        fallback_key = os.getenv("GROQ_API_KEY2", "").strip()
+        if not fallback_key:
+            return JsonResponse({"error": "GROQ_API_KEY2 is not configured"}, status=500)
+
+        questions = body.get("questions") if isinstance(body.get("questions"), list) else []
+        compact_questions = []
+        for q in questions[:25]:
+            if not isinstance(q, dict):
+                continue
+            compact_questions.append({
+                "q": str(q.get("q", ""))[:220],
+                "type": str(q.get("type", ""))[:20],
+                "points": float(q.get("points", 0) or 0),
+                "expected_keywords": [str(k)[:32] for k in (q.get("expected_keywords") or [])[:10]],
+                "user_answer": str(q.get("user_answer", ""))[:280],
+                "correct_answer": str(q.get("correct_answer", ""))[:120],
+            })
+
+        signal = {
+            "topic": str(body.get("topic", "General"))[:80],
+            "difficulty": str(body.get("difficulty", "Medium"))[:24],
+            "score": body.get("score", 0),
+            "maxScore": body.get("maxScore", 0),
+            "pct": body.get("pct", 0),
+            "timeTaken": body.get("timeTaken", 0),
+            "proctor": body.get("proctor") if isinstance(body.get("proctor"), dict) else None,
+            "questions": compact_questions,
+        }
+
+        prompt = (
+            "You are an interview coach. Analyze this mock test result and return ONLY JSON object with keys: "
+            "overview (string), strengths (array of strings), gaps (array of strings), recommendations (array of strings). "
+            "Each list must have 3-5 concise items. Recommendations must be actionable and prioritized.\n\n"
+            f"RESULT_DATA:\n{json.dumps(signal, ensure_ascii=True)}"
+        )
+
+        client = Groq(api_key=fallback_key)
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            max_completion_tokens=1200,
+        )
+
+        raw = (completion.choices[0].message.content or "").strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return JsonResponse({"error": "AI response did not contain a JSON object"}, status=500)
+
+        parsed = json.loads(match.group())
+
+        def _list(key):
+            value = parsed.get(key)
+            if not isinstance(value, list):
+                return []
+            cleaned = [str(item).strip() for item in value if str(item).strip()]
+            return cleaned[:5]
+
+        result = {
+            "overview": str(parsed.get("overview", "")).strip(),
+            "strengths": _list("strengths"),
+            "gaps": _list("gaps"),
+            "recommendations": _list("recommendations"),
+        }
+
+        return JsonResponse(result)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def start_proctoring(request):
     """Start a background proctoring session. Returns {session_id}."""
     try:

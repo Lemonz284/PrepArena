@@ -104,6 +104,33 @@ def _iou(a, b):
     return inter / union if union else 0
 
 
+def _is_near_duplicate_face(a, b):
+    # Treat two detections as the same person when they overlap materially
+    # or when their centers are very close with similar box sizes.
+    if _iou(a, b) >= 0.20:
+        return True
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    acx, acy = ax + aw / 2.0, ay + ah / 2.0
+    bcx, bcy = bx + bw / 2.0, by + bh / 2.0
+    dist = ((acx - bcx) ** 2 + (acy - bcy) ** 2) ** 0.5
+    amin = max(1.0, min((aw * aw + ah * ah) ** 0.5, (bw * bw + bh * bh) ** 0.5))
+    area_ratio = (aw * ah) / max(1.0, bw * bh)
+    return dist / amin <= 0.35 and 0.50 <= area_ratio <= 2.00
+
+
+def _dedupe_faces(faces):
+    if not faces:
+        return []
+    # Keep larger boxes first; small duplicates are usually noisier.
+    ordered = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+    unique = []
+    for f in ordered:
+        if all(not _is_near_duplicate_face(f, u) for u in unique):
+            unique.append(f)
+    return unique
+
+
 _MAX_WIDTH = 320  # downscale frames to this width before detection
 
 
@@ -144,6 +171,7 @@ def _analyse_frame(frame_bgr, tracked: list):
         (x, y, w, h) for (x, y, w, h) in faces
         if _valid_ar(w, h) and _is_skin(small, x, y, w, h)
     ]
+    validated = _dedupe_faces(validated)
 
     MIN_CONSECUTIVE = 2
     IOU_THRESHOLD   = 0.3
@@ -214,7 +242,10 @@ class _Session:
         # Prevents blinks, eye-detection hiccups, and brief keyboard glances from
         # inflating the "not looking at screen" percentage.
         _AWAY_STREAK_REQ = 4
+        # Ignore one-off multi-face spikes from detector jitter.
+        _MULTI_STREAK_REQ = 2
         away_streak = 0
+        multi_streak = 0
         while True:
             item = self._q.get()
             if item is _SENTINEL:
@@ -230,10 +261,15 @@ class _Session:
                 self.total_frames += 1
                 if face_count == 0:
                     away_streak = 0
+                    multi_streak = 0
                     self.no_face_frames += 1
                 else:
                     if face_count > 1:
-                        self.multi_face_frames += 1
+                        multi_streak += 1
+                        if multi_streak >= _MULTI_STREAK_REQ:
+                            self.multi_face_frames += 1
+                    else:
+                        multi_streak = 0
                     if is_away:
                         away_streak += 1
                         # Only count once the streak crosses the threshold, then
