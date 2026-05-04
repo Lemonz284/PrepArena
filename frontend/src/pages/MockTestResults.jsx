@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { CheckCircle2, XCircle, Clock, RotateCcw, LayoutDashboard, ShieldCheck, ShieldAlert, ShieldOff, AlertTriangle } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -10,6 +10,10 @@ export default function MockTestResults() {
   const location = useLocation();
   const navigate = useNavigate();
   const { questions = [], answers = {}, score = 0, maxScore = questions.length || 0, questionScores = {}, topic = '', difficulty = '', timeTaken = 0, proctor = null, proctorReport = null } = location.state || {};
+  const PROCTOR_REPORT_STORAGE_KEY = 'mockTestProctorReport';
+
+  const [storedReport, setStoredReport] = useState(proctorReport);
+  const [storedProctor, setStoredProctor] = useState(proctor);
 
   const total = maxScore || questions.length;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -46,7 +50,7 @@ export default function MockTestResults() {
     maxScore: total,
     pct,
     timeTaken,
-    proctor,
+    proctor: storedProctor,
     questions: questions.map((q, i) => {
       const userAns = answers[i];
       const qEval = questionScores[i] || { points: userAns === q.answer ? 1 : 0 };
@@ -63,8 +67,8 @@ export default function MockTestResults() {
   };
 
   const handleDownloadReport = () => {
-    if (!proctorReport) return;
-    const blob = new Blob([JSON.stringify(proctorReport, null, 2)], { type: 'application/json' });
+    if (!storedReport) return;
+    const blob = new Blob([JSON.stringify(storedReport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -72,6 +76,43 @@ export default function MockTestResults() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const deriveProctorFromReport = (report) => {
+    if (!report || !report.metrics) return null;
+    const totalFrames = Number(report.metrics.total_frames || 0);
+    const noFace = Number(report.metrics.no_face_frames || 0);
+    const offCenter = Number(report.metrics.off_center_frames || 0);
+    const multiFace = Number(report.metrics.multi_face_frames || 0);
+    const faceNotPct = totalFrames > 0 ? Number(((noFace / totalFrames) * 100).toFixed(1)) : 0.0;
+    const validFaceFrames = Math.max(0, totalFrames - noFace);
+    const awayPct = validFaceFrames > 0 ? Number(((offCenter / validFaceFrames) * 100).toFixed(1)) : 0.0;
+    const multiPct = totalFrames > 0 ? Number(((multiFace / totalFrames) * 100).toFixed(1)) : 0.0;
+
+    return {
+      cheating: Boolean(report.verdict?.cheating),
+      camera_available: Boolean(report.camera_available),
+      face_not_in_frame_pct: faceNotPct,
+      not_looking_pct: awayPct,
+      multi_face_pct: multiPct,
+      total_frames: totalFrames,
+      flags: Array.isArray(report.verdict?.flags) ? report.verdict.flags : [],
+      cheating_probability: report.verdict?.cheating_probability ?? null,
+      provider: report.provider || 'mediapipe',
+    };
+  };
+
+  useEffect(() => {
+    if (storedReport || storedProctor) return;
+    try {
+      const raw = localStorage.getItem(PROCTOR_REPORT_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setStoredReport(parsed);
+      setStoredProctor(deriveProctorFromReport(parsed));
+    } catch (_) {
+      // Ignore storage errors.
+    }
+  }, [storedReport, storedProctor]);
 
   return (
     <div className="res-root">
@@ -114,48 +155,48 @@ export default function MockTestResults() {
             </div>
 
             {/* Proctoring Verdict */}
-            {proctor && (
-              <div className={`proctor-card ${proctor.camera_available ? (proctor.cheating ? 'proctor-cheat' : 'proctor-clean') : 'proctor-unavail'}`}>
+            {storedProctor && (
+              <div className={`proctor-card ${storedProctor.camera_available ? (storedProctor.cheating ? 'proctor-cheat' : 'proctor-clean') : 'proctor-unavail'}`}>
                 <div className="proctor-card-header">
-                  {!proctor.camera_available ? (
+                  {!storedProctor.camera_available ? (
                     <><ShieldOff size={18} strokeWidth={1.75} /><span>Proctoring Unavailable</span></>
-                  ) : proctor.cheating ? (
+                  ) : storedProctor.cheating ? (
                     <><ShieldAlert size={18} strokeWidth={1.75} /><span>Suspicious Activity Detected</span></>
                   ) : (
                     <><ShieldCheck size={18} strokeWidth={1.75} /><span>Session Clean</span></>
                   )}
-                  <span className="proctor-frames">{proctor.total_frames} frames analysed</span>
+                  <span className="proctor-frames">{storedProctor.total_frames} frames analysed</span>
                 </div>
 
-                {proctor.camera_available && (
+                {storedProctor.camera_available && (
                   <div className="proctor-stats">
                     <div className="proctor-stat">
                       <span className="pstat-label">Face absent</span>
-                      <span className={`pstat-value ${proctor.face_not_in_frame_pct > 15 ? 'pstat-bad' : 'pstat-ok'}`}>
-                        {proctor.face_not_in_frame_pct}%
+                      <span className={`pstat-value ${storedProctor.face_not_in_frame_pct > 15 ? 'pstat-bad' : 'pstat-ok'}`}>
+                        {storedProctor.face_not_in_frame_pct}%
                       </span>
                     </div>
                     <div className="proctor-stat">
                       <span className="pstat-label">Not at screen</span>
-                      <span className={`pstat-value ${proctor.not_looking_pct > 20 ? 'pstat-bad' : 'pstat-ok'}`}>
-                        {proctor.not_looking_pct}%
+                      <span className={`pstat-value ${storedProctor.not_looking_pct > 20 ? 'pstat-bad' : 'pstat-ok'}`}>
+                        {storedProctor.not_looking_pct}%
                       </span>
                     </div>
                     <div className="proctor-stat">
                       <span className="pstat-label">Multiple faces</span>
-                      <span className={`pstat-value ${proctor.multi_face_pct > 5 ? 'pstat-bad' : 'pstat-ok'}`}>
-                        {proctor.multi_face_pct}%
+                      <span className={`pstat-value ${storedProctor.multi_face_pct > 5 ? 'pstat-bad' : 'pstat-ok'}`}>
+                        {storedProctor.multi_face_pct}%
                       </span>
                     </div>
                   </div>
                 )}
 
-                {proctor.flags && proctor.flags.length > 0 && (
+                {storedProctor.flags && storedProctor.flags.length > 0 && (
                   <ul className="proctor-flags">
-                    {proctor.flags.map((f, i) => <li key={i}>{f}</li>)}
+                    {storedProctor.flags.map((f, i) => <li key={i}>{f}</li>)}
                   </ul>
                 )}
-                {proctorReport && (
+                {storedReport && (
                   <button className="res-btn res-btn-retake" onClick={handleDownloadReport}>
                     Download Proctor Report
                   </button>
