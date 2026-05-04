@@ -1,6 +1,8 @@
 import json
 import re
 import os
+import uuid
+from datetime import datetime
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -293,6 +295,32 @@ def stop_proctoring(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def upload_proctor_report(request):
+    try:
+        body = json.loads(request.body)
+        if not isinstance(body, dict):
+            return JsonResponse({"error": "Invalid report body"}, status=400)
+
+        reports_dir = os.path.join(os.path.dirname(__file__), "proctor_reports")
+        os.makedirs(reports_dir, exist_ok=True)
+
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        rid = uuid.uuid4().hex[:8]
+        filename = f"proctor_report_{ts}_{rid}.json"
+        out_path = os.path.join(reports_dir, filename)
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(body, f, ensure_ascii=True, indent=2)
+
+        return JsonResponse({"ok": True, "file": filename})
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
 @api_view(["POST"])
 def register_user(request):
     username = request.data.get("username")
@@ -309,3 +337,155 @@ def register_user(request):
     )
 
     return Response({"message": "User created successfully"}, status=status.HTTP_201_CREATED)
+
+
+# ---------------------------------------------------------------------------
+# AI Mock Interview — next question endpoint
+# ---------------------------------------------------------------------------
+THINKING_FILLER = [
+    "Hmm, interesting.",
+    "Okay, got it.",
+    "Let me think about that.",
+    "That's a fair point.",
+    "Alright.",
+    "Good to know.",
+]
+
+import random as _random
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def interview_next(request):
+    """
+    Receive the candidate's last answer and return the next interview question.
+    Body: {
+        role, company,
+        last_answer: str,
+        question_number: int,   // 1-based, the question just answered
+        total_questions: int,
+        history: [{q, a}, ...]  // last <=4 pairs for context
+    }
+    Returns: { next_question, thinking_phrase, is_last }
+    """
+    try:
+        body = json.loads(request.body)
+        role             = str(body.get("role", "Software Engineer"))[:80]
+        company          = str(body.get("company", "the company"))[:80]
+        last_answer      = str(body.get("last_answer", ""))[:1200]
+        question_number  = int(body.get("question_number", 1))
+        total_questions  = int(body.get("total_questions", 6))
+        history          = body.get("history", [])
+        if not isinstance(history, list):
+            history = []
+
+        # Use primary key first, fallback second
+        primary_key  = os.getenv("GROQ_API_KEY",  "").strip()
+        fallback_key = os.getenv("GROQ_API_KEY2", "").strip()
+        candidate_keys = [k for k in (primary_key, fallback_key)
+                          if k and k != "gsk_your_actual_key_here"]
+        if not candidate_keys:
+            return JsonResponse({"error": "No valid Groq API key configured."}, status=500)
+
+        # Build rolling context block (last 4 exchanges to save tokens)
+        context_lines = []
+        for ex in history[-4:]:
+            q_text = str(ex.get("q", ""))[:200]
+            a_text = str(ex.get("a", ""))[:400]
+            if q_text:
+                context_lines.append(f"Q: {q_text}\nA: {a_text}")
+        context_block = "\n\n".join(context_lines)
+
+        is_last = (question_number >= total_questions)
+
+        if is_last:
+            next_instruction = (
+                "This is the FINAL exchange of the interview. "
+                "After this, the interview ends. "
+                "For NEXT: ask one strong closing question about their biggest strength, "
+                "proudest project, or future goals."
+            )
+        else:
+            remaining = total_questions - question_number
+            next_instruction = (
+                f"There are {remaining} more exchanges left. "
+                "For NEXT: you have two options — pick whichever feels more natural:\n"
+                "  Option A) Ask a new interview question (behavioral OR technical, mix them up). "
+                "  Option B) Follow up conversationally on what the candidate just said "
+                "  (e.g. 'So what happened after that?', 'How did the team react?', "
+                "  'Did you consider doing X instead?', 'What would you do differently now?'). "
+                "Choose Option B if the candidate's answer was interesting or incomplete. "
+                "Do NOT repeat anything already discussed."
+            )
+
+        system_prompt = (
+            f"You are a sharp, friendly professional interviewer conducting a mock interview "
+            f"for the role of {role} at {company}. "
+            "You speak naturally, like a real human interviewer — not a chatbot. "
+            "Keep every response SHORT. No markdown. Plain text only."
+        )
+
+        user_prompt = (
+            f"Recent interview exchanges:\n{context_block}\n\n"
+            f"The candidate just said (answering exchange {question_number} of {total_questions}):\n"
+            f"\"{last_answer}\"\n\n"
+            f"{next_instruction}\n\n"
+            "Respond in EXACTLY this format (two lines, nothing else):\n"
+            "REACTION: <one natural sentence acknowledging/reacting to their answer — "
+            "e.g. 'That's a great example.' / 'Interesting approach.' / "
+            "'Nice, sounds like a challenging situation.' / 'Good thinking.'>"
+            "\n"
+            "NEXT: <the follow-up or next question — conversational OR formal, your choice>"
+            "\n\n"
+            "Rules: REACTION must be exactly 1 sentence. NEXT must be 1-2 sentences max. "
+            "No numbering. No extra text outside the two lines."
+        )
+
+        completion = None
+        last_err   = None
+        for api_key in candidate_keys:
+            try:
+                client     = Groq(api_key=api_key)
+                completion = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": user_prompt},
+                    ],
+                    temperature=0.8,
+                    max_completion_tokens=260,
+                )
+                break
+            except Exception as err:
+                last_err = err
+
+        if completion is None:
+            raise RuntimeError(f"Groq request failed: {last_err}")
+
+        raw_response = (completion.choices[0].message.content or "").strip()
+
+        # Parse REACTION / NEXT from structured response
+        reaction   = ""
+        next_turn  = ""
+        for line in raw_response.splitlines():
+            line = line.strip()
+            if line.lower().startswith("reaction:"):
+                reaction  = line[len("reaction:"):].strip()
+            elif line.lower().startswith("next:"):
+                next_turn = line[len("next:"):].strip()
+
+        # Fallback: if model didn't follow format, use entire response as next_turn
+        if not next_turn:
+            next_turn = raw_response
+            reaction  = _random.choice(THINKING_FILLER)
+
+        return JsonResponse({
+            "reaction":        reaction,
+            "next_turn":       next_turn,
+            "thinking_phrase": _random.choice(THINKING_FILLER),
+            "is_last":         is_last,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

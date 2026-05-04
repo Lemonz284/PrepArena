@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, Clock, ShieldCheck, ShieldAlert, Camera, CameraOff } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import './MockTest.css';
+import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision';
 
 function normalizeText(s) {
   return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -67,6 +68,106 @@ function isAnswered(question, answerValue) {
   return answerValue !== undefined;
 }
 
+const FACE_MISSING_THRESHOLD = 15.0;
+const LOOK_AWAY_THRESHOLD = 25.0;
+const MULTI_FACE_THRESHOLD = 5.0;
+const PROCTOR_REPORT_STORAGE_KEY = 'mockTestProctorReport';
+
+function buildUnavailableProctorResult(totalFrames = 0) {
+  return {
+    cheating: false,
+    camera_available: false,
+    face_not_in_frame_pct: 0.0,
+    not_looking_pct: 0.0,
+    multi_face_pct: 0.0,
+    total_frames: totalFrames,
+    flags: [],
+    cheating_probability: null,
+    provider: 'mediapipe',
+  };
+}
+
+function buildProctorResultFromMetrics(metrics) {
+  const totalFrames = Number(metrics?.totalFrames || 0);
+  if (!metrics?.cameraAvailable || totalFrames === 0) {
+    return buildUnavailableProctorResult(totalFrames);
+  }
+
+  const noFaceFrames = Number(metrics?.noFaceFrames || 0);
+  const offCenterFrames = Number(metrics?.offCenterFrames || 0);
+  const multiFaceFrames = Number(metrics?.multiFaceFrames || 0);
+
+  const faceNotPct = Number(((noFaceFrames / totalFrames) * 100).toFixed(1));
+  const validFaceFrames = Math.max(0, totalFrames - noFaceFrames);
+  const awayPct = Number(((validFaceFrames > 0 ? offCenterFrames / validFaceFrames : 0) * 100).toFixed(1));
+  const multiPct = Number(((multiFaceFrames / totalFrames) * 100).toFixed(1));
+
+  const flags = [];
+  if (faceNotPct > FACE_MISSING_THRESHOLD) {
+    flags.push(`Face absent ${faceNotPct}% of the time`);
+  }
+  if (awayPct > LOOK_AWAY_THRESHOLD) {
+    flags.push(`Not looking at screen ${awayPct}% of the time`);
+  }
+  if (multiPct > MULTI_FACE_THRESHOLD) {
+    flags.push(`Multiple people detected in ${multiPct}% of samples`);
+  }
+
+  const cheatingProbability = Number(
+    Math.min(
+      1,
+      Math.max(
+        0,
+        (faceNotPct / 100) * 0.5 +
+          (awayPct / 100) * 0.35 +
+          (multiPct / 100) * 0.15
+      )
+    ).toFixed(3)
+  );
+
+  return {
+    cheating: flags.length > 0,
+    camera_available: true,
+    face_not_in_frame_pct: faceNotPct,
+    not_looking_pct: awayPct,
+    multi_face_pct: multiPct,
+    total_frames: totalFrames,
+    flags,
+    cheating_probability: cheatingProbability,
+    provider: 'mediapipe',
+  };
+}
+
+function buildProctorReport(metrics, result, meta) {
+  const now = new Date();
+  return {
+    created_at: now.toISOString(),
+    provider: result?.provider || 'mediapipe',
+    camera_available: Boolean(metrics?.cameraAvailable),
+    thresholds: {
+      face_missing_pct: FACE_MISSING_THRESHOLD,
+      look_away_pct: LOOK_AWAY_THRESHOLD,
+      multi_face_pct: MULTI_FACE_THRESHOLD,
+    },
+    metrics: {
+      total_frames: Number(metrics?.totalFrames || 0),
+      no_face_frames: Number(metrics?.noFaceFrames || 0),
+      off_center_frames: Number(metrics?.offCenterFrames || 0),
+      multi_face_frames: Number(metrics?.multiFaceFrames || 0),
+    },
+    verdict: {
+      cheating: Boolean(result?.cheating),
+      cheating_probability: result?.cheating_probability ?? null,
+      flags: Array.isArray(result?.flags) ? result.flags : [],
+    },
+    session: {
+      topic: meta?.topic || null,
+      difficulty: meta?.difficulty || null,
+      question_count: Number(meta?.count || 0),
+    },
+  };
+}
+
 /* ── Loading screen ── */
 function LoadingScreen({ topic, difficulty }) {
   const [dots, setDots] = useState('');
@@ -103,7 +204,7 @@ function ErrorScreen({ message, onRetry }) {
 }
 
 /* ── Camera check screen ── */
-function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, camError, onStart, onSkip }) {
+function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, camError, onStart }) {
   return (
     <div className="test-root">
       <Navbar />
@@ -115,7 +216,7 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
             <ShieldCheck size={22} strokeWidth={2} className="cam-check-icon" />
             <h2 className="cam-check-title">Camera Check</h2>
             <p className="cam-check-subtitle">
-              This test is <strong>proctored</strong>. Allow camera access so your session can be monitored for integrity.
+              This test is <strong>proctored</strong>. Camera access is required to start.
             </p>
           </div>
 
@@ -157,7 +258,7 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
           <div className={`cam-status-row ${camState === 'granted' ? 'cam-ok' : camState === 'denied' ? 'cam-err' : 'cam-wait'}`}>
             {camState === 'granted' && <><Camera size={14} strokeWidth={2} /> Camera ready — face visible in frame before starting</>}
             {camState === 'requesting' && <><Loader2 size={14} strokeWidth={2} className="cam-spin" /> Requesting camera access…</>}
-            {camState === 'denied'    && <><CameraOff size={14} strokeWidth={2} /> Camera unavailable — test will run without proctoring</>}
+            {camState === 'denied'    && <><CameraOff size={14} strokeWidth={2} /> Camera blocked — enable access to continue</>}
           </div>
 
           {/* Test info */}
@@ -188,15 +289,10 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
             <button
               className="nav-btn submit-btn cam-start-btn"
               onClick={onStart}
-              disabled={camState === 'requesting'}
+              disabled={camState !== 'granted'}
             >
-              {camState === 'granted' ? '🚀 Begin Test' : camState === 'denied' ? 'Begin Without Camera' : 'Waiting…'}
+              {camState === 'granted' ? '🚀 Begin Test' : 'Waiting…'}
             </button>
-            {camState === 'granted' && (
-              <button className="cam-skip-btn" onClick={onSkip}>
-                Skip proctoring & continue
-              </button>
-            )}
           </div>
 
         </div>
@@ -230,13 +326,19 @@ export default function MockTest() {
   const [timeLeft, setTimeLeft]   = useState(count * 90);
   const [finished, setFinished]   = useState(false);
 
-  const procSidRef    = useRef(null);   // proctoring session id
-  const procActiveRef = useRef(false);  // true once proctoring session started
   const videoRef      = useRef(null);   // in-test floating camera <video>
   const checkVideoRef = useRef(null);   // pre-test camera check <video>
   const streamRef     = useRef(null);   // MediaStream handle (shared)
-  const canvasRef     = useRef(null);   // off-screen canvas for frame capture
-  const frameTimerRef = useRef(null);   // setInterval id
+  const detectorRef   = useRef(null);
+  const detectorReadyRef = useRef(false);
+  const proctorLoopRef = useRef(null);
+  const localMetricsRef = useRef({
+    cameraAvailable: false,
+    totalFrames: 0,
+    noFaceFrames: 0,
+    offCenterFrames: 0,
+    multiFaceFrames: 0,
+  });
 
   // ── Request camera access immediately on mount ──────────────────────────
   useEffect(() => {
@@ -291,76 +393,110 @@ export default function MockTest() {
     if (phase === 'test') fetchQuestions();
   }, [phase, fetchQuestions]);
 
-  // ── Start proctoring session + reuse stream once questions are ready ─────
+  // ── Start prebuilt browser-side proctoring once questions are ready ───────
   useEffect(() => {
-    if (questions.length === 0 || procActiveRef.current) return;
-    procActiveRef.current = true;
+    if (questions.length === 0 || detectorReadyRef.current) return;
+    detectorReadyRef.current = true;
 
-    // 1. Attach stream to floating video immediately — independent of proctoring API
-    //    (camera preview shows even if the backend is unreachable)
+    let cancelled = false;
+    localMetricsRef.current = {
+      cameraAvailable: false,
+      totalFrames: 0,
+      noFaceFrames: 0,
+      offCenterFrames: 0,
+      multiFaceFrames: 0,
+    };
+
+    // Attach stream to floating video first so user sees live status.
     const stream = streamRef.current;
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream;
     }
 
-    // 2. Create backend session and start frame capture
-    fetch('/api/proctoring/start/', { method: 'POST' })
-      .then(r => r.json())
-      .then(d => {
-        if (!d.session_id) return;
-        procSidRef.current = d.session_id;
+    if (!stream) {
+      return () => {};
+    }
 
-        if (!stream) return; // camera was denied — no proctoring frames
+    localMetricsRef.current.cameraAvailable = true;
 
-        const vid = videoRef.current;
-        if (!vid) return;
+    const startDetector = async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm'
+        );
+        if (cancelled) return;
 
-        const startCapture = () => {
-          const INTERVAL = 500; // ms between frame completions — prevents backend pileup
-          const captureLoop = () => {
-            const sid = procSidRef.current;
-            const v = videoRef.current;
-            const canvas = canvasRef.current;
-            if (!sid || !canvas || !v || v.readyState < 2) {
-              frameTimerRef.current = setTimeout(captureLoop, INTERVAL);
-              return;
-            }
-            // Cap to 480×360 — slightly above minimum for better detection accuracy
-            const scale = Math.min(1, 480 / (v.videoWidth || 480));
-            canvas.width  = Math.round((v.videoWidth  || 480) * scale);
-            canvas.height = Math.round((v.videoHeight || 360) * scale);
-            canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(blob => {
-              if (!blob || !procSidRef.current) {
-                frameTimerRef.current = setTimeout(captureLoop, INTERVAL);
-                return;
+        const detector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite',
+          },
+          runningMode: 'VIDEO',
+          minDetectionConfidence: 0.45,
+        });
+        if (cancelled) {
+          detector.close();
+          return;
+        }
+
+        detectorRef.current = detector;
+
+        const INTERVAL = 700;
+        const runLoop = () => {
+          if (cancelled) return;
+
+          const video = videoRef.current;
+          const activeDetector = detectorRef.current;
+          if (!video || !activeDetector || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+            proctorLoopRef.current = setTimeout(runLoop, INTERVAL);
+            return;
+          }
+
+          try {
+            const out = activeDetector.detectForVideo(video, performance.now());
+            const detections = Array.isArray(out?.detections) ? out.detections : [];
+            const metrics = localMetricsRef.current;
+            metrics.totalFrames += 1;
+
+            if (detections.length === 0) {
+              metrics.noFaceFrames += 1;
+            } else {
+              if (detections.length > 1) {
+                metrics.multiFaceFrames += 1;
               }
-              const fd = new FormData();
-              fd.append('session_id', procSidRef.current);
-              fd.append('frame', blob, 'frame.jpg');
-              // Schedule next frame only after this POST resolves — prevents pileup
-              fetch('/api/proctoring/frame/', { method: 'POST', body: fd })
-                .catch(() => {})
-                .finally(() => {
-                  frameTimerRef.current = setTimeout(captureLoop, INTERVAL);
-                });
-            }, 'image/jpeg', 0.5);
-          };
-          captureLoop();
+
+              const box = detections[0]?.boundingBox;
+              if (box) {
+                const centerX = (box.originX + box.width / 2) / video.videoWidth;
+                const centerY = (box.originY + box.height / 2) / video.videoHeight;
+                if (centerX < 0.28 || centerX > 0.72 || centerY < 0.2 || centerY > 0.8) {
+                  metrics.offCenterFrames += 1;
+                }
+              }
+            }
+          } catch (_) {
+            // Ignore transient detector errors and keep sampling.
+          }
+
+          proctorLoopRef.current = setTimeout(runLoop, INTERVAL);
         };
 
-        // By the time the fetch resolves the video is usually already playing;
-        // check readyState first to avoid missing a loadeddata that already fired.
-        if (vid.readyState >= 2) {
-          startCapture();
-        } else {
-          vid.addEventListener('loadeddata', startCapture, { once: true });
-        }
-      })
-      .catch(() => {});
+        runLoop();
+      } catch (_) {
+        // Detector load failed; keep test flow running without blocking.
+        localMetricsRef.current.cameraAvailable = false;
+      }
+    };
+
+    startDetector();
 
     return () => {
-      clearTimeout(frameTimerRef.current);
+      cancelled = true;
+      clearTimeout(proctorLoopRef.current);
+      if (detectorRef.current) {
+        detectorRef.current.close();
+        detectorRef.current = null;
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
         streamRef.current = null;
@@ -390,29 +526,33 @@ export default function MockTest() {
       }
     });
 
-    // Stop frame capture timer
-    clearTimeout(frameTimerRef.current);
-
-    // Wait for any in-flight frame POSTs to land before closing the session.
-    // Without this, frames already sent but not yet received by Django arrive
-    // after stop_session pops the session and are silently discarded.
-    if (procSidRef.current) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+    clearTimeout(proctorLoopRef.current);
+    if (detectorRef.current) {
+      detectorRef.current.close();
+      detectorRef.current = null;
     }
 
-    // Stop proctoring and collect verdict
-    let procResult = null;
-    const sid = procSidRef.current;
-    if (sid) {
-      try {
-        const r = await fetch('/api/proctoring/stop/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sid }),
-        });
-        procResult = await r.json();
-      } catch (_) { /* silent — proctoring failure doesn't block results */ }
-      procSidRef.current = null;
+    const procResult = buildProctorResultFromMetrics(localMetricsRef.current);
+    const proctorReport = buildProctorReport(localMetricsRef.current, procResult, {
+      topic,
+      difficulty,
+      count,
+    });
+
+    try {
+      localStorage.setItem(PROCTOR_REPORT_STORAGE_KEY, JSON.stringify(proctorReport));
+    } catch (_) {
+      // Ignore storage failures (private mode, quota, etc.).
+    }
+
+    try {
+      await fetch('/api/proctoring/report/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proctorReport),
+      });
+    } catch (_) {
+      // Ignore report upload failures for local-only runs.
     }
 
     // Stop browser camera preview
@@ -432,6 +572,7 @@ export default function MockTest() {
         difficulty,
         timeTaken: questions.length * 90 - timeLeft,
         proctor: procResult,
+        proctorReport,
       },
     });
   }, [finished, questions, answers, navigate, topic, difficulty, timeLeft]);
@@ -453,13 +594,8 @@ export default function MockTest() {
         checkVideoRef={checkVideoRef}
         camState={camState}
         camError={camError}
-        onStart={() => setPhase('test')}
-        onSkip={() => {
-          // Stop stream so no proctoring frames are sent
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop());
-            streamRef.current = null;
-          }
+        onStart={() => {
+          if (camState !== 'granted') return;
           setPhase('test');
         }}
       />
@@ -579,9 +715,6 @@ export default function MockTest() {
         </div>
 
       </div>
-
-      {/* Hidden canvas for frame capture */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {/* Floating camera preview */}
       <div className="proctor-cam-wrap">

@@ -9,7 +9,7 @@ import './MockTestResults.css';
 export default function MockTestResults() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { questions = [], answers = {}, score = 0, maxScore = questions.length || 0, questionScores = {}, topic = '', difficulty = '', timeTaken = 0, proctor = null } = location.state || {};
+  const { questions = [], answers = {}, score = 0, maxScore = questions.length || 0, questionScores = {}, topic = '', difficulty = '', timeTaken = 0, proctor = null, proctorReport = null } = location.state || {};
 
   const total = maxScore || questions.length;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -60,6 +60,17 @@ export default function MockTestResults() {
         points: Number(qEval.points || 0),
       };
     }),
+  };
+
+  const handleDownloadReport = () => {
+    if (!proctorReport) return;
+    const blob = new Blob([JSON.stringify(proctorReport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `proctor-report-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -143,6 +154,11 @@ export default function MockTestResults() {
                   <ul className="proctor-flags">
                     {proctor.flags.map((f, i) => <li key={i}>{f}</li>)}
                   </ul>
+                )}
+                {proctorReport && (
+                  <button className="res-btn res-btn-retake" onClick={handleDownloadReport}>
+                    Download Proctor Report
+                  </button>
                 )}
                 </div>
             )}
