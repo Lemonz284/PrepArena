@@ -15,22 +15,33 @@ function extractProctorFromReport(report) {
   if (!report) return null;
 
   // If the report carries a fully-computed result object, use it directly.
-  // This is the shape written by buildProctorResultFromMetrics in MockTest.jsx.
   if (report.result) return report.result;
 
-  // Older reports only have raw metric counts — reconstruct with the same
-  // formula as MockTest.jsx so the numbers always match.
-  const totalFrames     = Number(report.metrics?.total_frames     || 0);
-  const noFaceFrames    = Number(report.metrics?.no_face_frames   || 0);
+  const totalFrames     = Number(report.metrics?.total_frames      || 0);
+  const noFaceFrames    = Number(report.metrics?.no_face_frames    || 0);
   const offCenterFrames = Number(report.metrics?.off_center_frames || 0);
   const multiFaceFrames = Number(report.metrics?.multi_face_frames || 0);
 
   const cameraAvailable = Boolean(report.camera_available);
-  if (!cameraAvailable || totalFrames === 0) {
+
+  // When camera was not available at all, return a clean unavailable result.
+  if (!cameraAvailable) {
     return {
       cheating: false, camera_available: false,
       face_not_in_frame_pct: 0.0, not_looking_pct: 0.0, multi_face_pct: 0.0,
-      total_frames: totalFrames, flags: [], cheating_probability: null, provider: 'mediapipe',
+      total_frames: totalFrames, flags: [], cheating_probability: null,
+      provider: 'mediapipe', no_frames: true,
+    };
+  }
+
+  // Camera WAS available but detector never ran (e.g. MediaPipe CDN slow,
+  // very short test, or detector failed to initialise).
+  if (totalFrames === 0) {
+    return {
+      cheating: false, camera_available: true,
+      face_not_in_frame_pct: 0.0, not_looking_pct: 0.0, multi_face_pct: 0.0,
+      total_frames: 0, flags: [], cheating_probability: null,
+      provider: 'mediapipe', no_frames: true,
     };
   }
 
@@ -66,6 +77,7 @@ function extractProctorFromReport(report) {
     flags,
     cheating_probability: cheatingProbability,
     provider: report.provider || 'mediapipe',
+    no_frames: false,
   };
 }
 
@@ -112,6 +124,12 @@ export default function MockTestResults() {
       status: passed ? 'Passed' : 'Failed',
     });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ensure we always have a derived proctor summary when a report exists.
+  useEffect(() => {
+    if (storedProctor || !storedReport) return;
+    setStoredProctor(extractProctorFromReport(storedReport));
+  }, [storedReport, storedProctor]);
 
   // Fallback: if results were navigated from history (no state), load from localStorage
   useEffect(() => {
@@ -208,66 +226,88 @@ export default function MockTestResults() {
               </div>
             </div>
 
-            {/* Proctoring card */}
-            {storedProctor && (
-              <div className={`proctor-card ${
-                !storedProctor.camera_available
-                  ? 'proctor-unavail'
-                  : storedProctor.cheating
-                    ? 'proctor-cheat'
-                    : 'proctor-clean'
-              }`}>
-                <div className="proctor-card-header">
-                  {!storedProctor.camera_available ? (
-                    <><ShieldOff   size={18} strokeWidth={1.75} /><span>Proctoring Unavailable</span></>
-                  ) : storedProctor.cheating ? (
-                    <><ShieldAlert size={18} strokeWidth={1.75} /><span>Suspicious Activity Detected</span></>
-                  ) : (
-                    <><ShieldCheck size={18} strokeWidth={1.75} /><span>Session Clean</span></>
-                  )}
-                  <span className="proctor-frames">{storedProctor.total_frames} frames analysed</span>
-                </div>
+            {/* Proctoring card — always show if we have any proctor data */}
+            {(storedProctor || storedReport) && (() => {
+              const p = storedProctor;
+              const noCamera  = !p || !p.camera_available;
+              const noFrames  = p?.no_frames === true || (p?.camera_available && p?.total_frames === 0);
+              const isCheating = p?.cheating && !noFrames;
+              const cardClass = noCamera
+                ? 'proctor-unavail'
+                : isCheating
+                ? 'proctor-cheat'
+                : 'proctor-clean';
 
-                {storedProctor.camera_available && (
-                  <div className="proctor-stats">
-                    <div className="proctor-stat">
-                      <span className="pstat-label">Face absent</span>
-                      <span className={`pstat-value ${storedProctor.face_not_in_frame_pct > 15 ? 'pstat-bad' : 'pstat-ok'}`}>
-                        {storedProctor.face_not_in_frame_pct}%
+              return (
+                <div className={`proctor-card ${cardClass}`}>
+                  <div className="proctor-card-header">
+                    {noCamera ? (
+                      <><ShieldOff   size={18} strokeWidth={1.75} /><span>Camera Not Available</span></>
+                    ) : isCheating ? (
+                      <><ShieldAlert size={18} strokeWidth={1.75} /><span>Suspicious Activity Detected</span></>
+                    ) : (
+                      <><ShieldCheck size={18} strokeWidth={1.75} /><span>Session Clean</span></>
+                    )}
+                    {p && (
+                      <span className="proctor-frames">
+                        {p.total_frames} frame{p.total_frames !== 1 ? 's' : ''} analysed
                       </span>
-                    </div>
-                    <div className="proctor-stat">
-                      <span className="pstat-label">Not at screen</span>
-                      <span className={`pstat-value ${storedProctor.not_looking_pct > 25 ? 'pstat-bad' : 'pstat-ok'}`}>
-                        {storedProctor.not_looking_pct}%
-                      </span>
-                    </div>
-                    <div className="proctor-stat">
-                      <span className="pstat-label">Multiple faces</span>
-                      <span className={`pstat-value ${storedProctor.multi_face_pct > 5 ? 'pstat-bad' : 'pstat-ok'}`}>
-                        {storedProctor.multi_face_pct}%
-                      </span>
-                    </div>
+                    )}
                   </div>
-                )}
 
-                {storedProctor.flags?.length > 0 && (
-                  <ul className="proctor-flags">
-                    {storedProctor.flags.map((f, i) => <li key={i}>{f}</li>)}
-                  </ul>
-                )}
+                  {/* No-frames notice */}
+                  {noFrames && p?.camera_available && (
+                    <div className="proctor-noframes-note">
+                      ⚠ Camera was active but the face detector didn't process any frames
+                      (the test may have been too short, or MediaPipe was still loading).
+                      No integrity score is available for this session.
+                    </div>
+                  )}
 
-                {storedReport && (
-                  <button
-                    className="res-btn res-btn-retake"
-                    style={{ marginTop:'0.75rem' }}
-                    onClick={handleDownloadReport}
-                  >
-                    Download Proctor Report
-                  </button>
-                )}
-              </div>
-            )}
+                  {/* Stats grid — show when camera was available */}
+                  {p && p.camera_available && !noFrames && (
+                    <div className="proctor-stats">
+                      <div className="proctor-stat">
+                        <span className="pstat-label">Face absent</span>
+                        <span className={`pstat-value ${p.face_not_in_frame_pct > 15 ? 'pstat-bad' : 'pstat-ok'}`}>
+                          {p.face_not_in_frame_pct}%
+                        </span>
+                      </div>
+                      <div className="proctor-stat">
+                        <span className="pstat-label">Off-center</span>
+                        <span className={`pstat-value ${p.not_looking_pct > 25 ? 'pstat-bad' : 'pstat-ok'}`}>
+                          {p.not_looking_pct}%
+                        </span>
+                      </div>
+                      <div className="proctor-stat">
+                        <span className="pstat-label">Multi-face</span>
+                        <span className={`pstat-value ${p.multi_face_pct > 5 ? 'pstat-bad' : 'pstat-ok'}`}>
+                          {p.multi_face_pct}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {p?.flags?.length > 0 && (
+                    <ul className="proctor-flags">
+                      {p.flags.map((f, i) => <li key={i}>{f}</li>)}
+                    </ul>
+                  )}
+
+                  {storedReport && (
+                    <button
+                      className="res-btn res-btn-retake"
+                      style={{ marginTop:'0.75rem' }}
+                      onClick={handleDownloadReport}
+                    >
+                      ⬇ Download Proctor Report
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
+
 
             {/* Per-question breakdown */}
             <h2 className="res-section-title">Answer Breakdown</h2>

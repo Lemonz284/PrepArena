@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, Clock, ShieldCheck, ShieldAlert, Camera, CameraOff } from 'lucide-react';
+import { Loader2, AlertCircle, Clock, ShieldCheck, ShieldOff, Camera, CameraOff } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import './MockTest.css';
-import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision';
 
-// ─── Text scoring helpers (unchanged) ─────────────────────────────────────
+// ─── Text scoring helpers ──────────────────────────────────────────────────
 
 function normalizeText(s) {
   return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -18,9 +17,7 @@ function tokenizeForMatch(s) {
     .filter(Boolean);
 }
 
-function unique(arr) {
-  return [...new Set(arr)];
-}
+function unique(arr) { return [...new Set(arr)]; }
 
 function tokenOverlapRatio(a, b) {
   const sa = new Set(unique(tokenizeForMatch(a)));
@@ -62,87 +59,31 @@ function isAnswered(question, answerValue) {
   return answerValue !== undefined;
 }
 
-// ─── Proctoring constants ──────────────────────────────────────────────────
+// ─── Proctoring helpers ────────────────────────────────────────────────────
 
-const FACE_MISSING_THRESHOLD = 15.0;
-const LOOK_AWAY_THRESHOLD    = 25.0;
-const MULTI_FACE_THRESHOLD   =  5.0;
 const PROCTOR_REPORT_STORAGE_KEY = 'mockTestProctorReport';
+const PROCTOR_FRAME_INTERVAL     = 900;   // ms between frame pushes
+const PROCTOR_FRAME_MAX_WIDTH    = 320;   // cap frame width sent to backend
 
-// FIX #7: single authoritative function used in both MockTest and Results.
-// MockTestResults.jsx imports this via localStorage — keep the shape identical.
-function buildProctorResultFromMetrics(metrics) {
-  const totalFrames = Number(metrics?.totalFrames || 0);
-  if (!metrics?.cameraAvailable || totalFrames === 0) {
-    return {
-      cheating: false,
-      camera_available: false,
-      face_not_in_frame_pct: 0.0,
-      not_looking_pct: 0.0,
-      multi_face_pct: 0.0,
-      total_frames: totalFrames,
-      flags: [],
-      cheating_probability: null,
-      provider: 'mediapipe',
-    };
-  }
-
-  const noFaceFrames    = Number(metrics.noFaceFrames    || 0);
-  const offCenterFrames = Number(metrics.offCenterFrames || 0);
-  const multiFaceFrames = Number(metrics.multiFaceFrames || 0);
-
-  const faceNotPct    = Number(((noFaceFrames / totalFrames) * 100).toFixed(1));
-  const validFaceFrames = Math.max(0, totalFrames - noFaceFrames);
-  const awayPct       = Number(((validFaceFrames > 0 ? offCenterFrames / validFaceFrames : 0) * 100).toFixed(1));
-  const multiPct      = Number(((multiFaceFrames / totalFrames) * 100).toFixed(1));
-
-  const flags = [];
-  if (faceNotPct > FACE_MISSING_THRESHOLD) flags.push(`Face absent ${faceNotPct}% of the time`);
-  if (awayPct    > LOOK_AWAY_THRESHOLD)    flags.push(`Not looking at screen ${awayPct}% of the time`);
-  if (multiPct   > MULTI_FACE_THRESHOLD)   flags.push(`Multiple people detected in ${multiPct}% of frames`);
-
-  const cheatingProbability = Number(
-    Math.min(1, Math.max(0,
-      (faceNotPct / 100) * 0.5 +
-      (awayPct    / 100) * 0.35 +
-      (multiPct   / 100) * 0.15
-    )).toFixed(3)
-  );
-
+function buildFallbackProctorResult(cameraAvailable = false) {
   return {
-    cheating: flags.length > 0,
-    camera_available: true,
-    face_not_in_frame_pct: faceNotPct,
-    not_looking_pct: awayPct,
-    multi_face_pct: multiPct,
-    total_frames: totalFrames,
-    flags,
-    cheating_probability: cheatingProbability,
-    provider: 'mediapipe',
+    cheating: false,
+    camera_available: cameraAvailable,
+    face_not_in_frame_pct: 0.0,
+    not_looking_pct: 0.0,
+    multi_face_pct: 0.0,
+    total_frames: 0,
+    flags: [],
+    cheating_probability: null,
+    provider: 'opencv',
   };
 }
 
-function buildProctorReport(metrics, result, meta) {
+function buildProctorReportFromBackend(result, meta) {
   return {
     created_at: new Date().toISOString(),
-    provider: result?.provider || 'mediapipe',
-    camera_available: Boolean(metrics?.cameraAvailable),
-    thresholds: {
-      face_missing_pct: FACE_MISSING_THRESHOLD,
-      look_away_pct:    LOOK_AWAY_THRESHOLD,
-      multi_face_pct:   MULTI_FACE_THRESHOLD,
-    },
-    metrics: {
-      total_frames:     Number(metrics?.totalFrames    || 0),
-      no_face_frames:   Number(metrics?.noFaceFrames   || 0),
-      off_center_frames: Number(metrics?.offCenterFrames || 0),
-      multi_face_frames: Number(metrics?.multiFaceFrames || 0),
-    },
-    verdict: {
-      cheating:             Boolean(result?.cheating),
-      cheating_probability: result?.cheating_probability ?? null,
-      flags: Array.isArray(result?.flags) ? result.flags : [],
-    },
+    provider: result?.provider || 'opencv',
+    result: result || buildFallbackProctorResult(false),
     session: {
       topic:          meta?.topic      || null,
       difficulty:     meta?.difficulty || null,
@@ -188,7 +129,7 @@ function ErrorScreen({ message, onRetry }) {
   );
 }
 
-function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, camError, onStart, onSkip }) {
+function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, camError, onStart }) {
   return (
     <div className="test-root">
       <Navbar />
@@ -198,7 +139,7 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
             <ShieldCheck size={22} strokeWidth={2} className="cam-check-icon" />
             <h2 className="cam-check-title">Camera Check</h2>
             <p className="cam-check-subtitle">
-              This test is <strong>proctored</strong>. Allow camera access to enable proctoring.
+              This test is <strong>proctored</strong>. Camera access is required to start.
             </p>
           </div>
 
@@ -236,9 +177,9 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
           </div>
 
           <div className={`cam-status-row ${camState === 'granted' ? 'cam-ok' : camState === 'denied' ? 'cam-err' : 'cam-wait'}`}>
-            {camState === 'granted'   && <><Camera     size={14} strokeWidth={2} /> Camera ready — face visible in frame before starting</>}
+            {camState === 'granted'    && <><Camera    size={14} strokeWidth={2} /> Camera ready — face visible in frame before starting</>}
             {camState === 'requesting' && <><Loader2   size={14} strokeWidth={2} className="cam-spin" /> Requesting camera access…</>}
-            {camState === 'denied'    && <><CameraOff  size={14} strokeWidth={2} /> Camera blocked — enable access for proctoring</>}
+            {camState === 'denied'     && <><CameraOff size={14} strokeWidth={2} /> Camera blocked — enable access to continue</>}
           </div>
 
           <div className="cam-check-meta">
@@ -271,10 +212,6 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
             >
               {camState === 'granted' ? '🚀 Begin Test' : 'Waiting for camera…'}
             </button>
-            {/* FIX: allow starting without camera so users aren't blocked */}
-            <button className="cam-skip-btn" onClick={onSkip}>
-              Begin without camera (no proctoring)
-            </button>
           </div>
         </div>
       </div>
@@ -296,8 +233,8 @@ export default function MockTest() {
     jdText     = '',
   } = location.state || {};
 
-  const [phase,    setPhase]    = useState('cam-check');  // 'cam-check' | 'test'
-  const [camState, setCamState] = useState('requesting'); // 'requesting' | 'granted' | 'denied'
+  const [phase,    setPhase]    = useState('cam-check');
+  const [camState, setCamState] = useState('requesting');
   const [camError, setCamError] = useState(null);
 
   const [questions, setQuestions] = useState([]);
@@ -307,29 +244,17 @@ export default function MockTest() {
   const [answers,   setAnswers]   = useState({});
   const [timeLeft,  setTimeLeft]  = useState(count * 90);
   const [finished,  setFinished]  = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
 
-  // FIX #3: separate refs for check-phase preview vs in-test floating preview
-  const videoRef      = useRef(null);  // floating preview during test
-  const checkVideoRef = useRef(null);  // preview on cam-check screen
-  // FIX #2: one shared stream ref that survives the phase transition
-  const streamRef     = useRef(null);
+  const videoRef         = useRef(null);   // floating preview during test
+  const checkVideoRef    = useRef(null);   // preview on cam-check screen
+  const streamRef        = useRef(null);   // MediaStream handle
+  const canvasRef        = useRef(null);   // off-screen canvas for frame capture
+  const proctorSidRef    = useRef(null);   // OpenCV session ID from backend
+  const proctorLoopRef   = useRef(null);   // setTimeout handle
+  const proctorInFlight  = useRef(false);  // prevent overlapping POSTs
 
-  // FIX #1: removed detectorReadyRef — detector starts fresh each time
-  // questions.length goes from 0 → N, useEffect dependency handles this correctly
-  const detectorRef      = useRef(null);
-  const proctorLoopRef   = useRef(null);
-  const localMetricsRef  = useRef({
-    cameraAvailable: false,
-    totalFrames:     0,
-    noFaceFrames:    0,
-    offCenterFrames: 0,
-    multiFaceFrames: 0,
-  });
-
-  // ── Camera access on mount ───────────────────────────────────────────────
-  // FIX #2: We acquire the stream once here and keep it in streamRef.
-  // The cam-check cleanup does NOT stop this stream — it only clears the
-  // checkVideoRef srcObject. The test-phase cleanup stops it properly.
+  // ── Request camera on mount ──────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
     navigator.mediaDevices.getUserMedia({ video: true, audio: false })
@@ -337,7 +262,6 @@ export default function MockTest() {
         if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
         setCamState('granted');
-        // Attach to check preview immediately
         if (checkVideoRef.current) checkVideoRef.current.srcObject = stream;
       })
       .catch((err) => {
@@ -345,16 +269,27 @@ export default function MockTest() {
         setCamState('denied');
         setCamError(err.message);
       });
+    return () => { mounted = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Stop camera on true unmount ──────────────────────────────────────────
+  useEffect(() => {
     return () => {
-      mounted = false;
-      // Do NOT stop the stream here — it is handed off to the test phase.
-      // If the component unmounts entirely (user navigates away before starting),
-      // the test-phase effect cleanup below handles it.
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
     };
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Fetch questions once test phase begins ───────────────────────────────
+  // ── Attach stream to floating video after cameraActive=true ─────────────
+  useEffect(() => {
+    if (!cameraActive || !videoRef.current || !streamRef.current) return;
+    videoRef.current.srcObject = streamRef.current;
+    videoRef.current.play().catch(() => {});
+  }, [cameraActive]);
+
+  // ── Fetch questions when test phase begins ───────────────────────────────
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -380,130 +315,91 @@ export default function MockTest() {
     if (phase === 'test') fetchQuestions();
   }, [phase, fetchQuestions]);
 
-  // ── Start MediaPipe detector once questions are ready ────────────────────
+  // ── Start OpenCV proctoring once questions are loaded ────────────────────
   useEffect(() => {
-    // Only run when questions have loaded and we are in test phase
     if (questions.length === 0) return;
+
+    const stream = streamRef.current;
+    if (!stream) return; // no camera — skip proctoring, test runs normally
+
+    // Mount floating camera widget (triggers the cameraActive effect above)
+    setCameraActive(true);
+    if (checkVideoRef.current) checkVideoRef.current.srcObject = null;
+
+    // Create an off-screen canvas for frame capture
+    const canvas  = document.createElement('canvas');
+    canvasRef.current = canvas;
 
     let cancelled = false;
 
-    // Reset metrics fresh for this test run
-    localMetricsRef.current = {
-      cameraAvailable: false,
-      totalFrames:     0,
-      noFaceFrames:    0,
-      offCenterFrames: 0,
-      multiFaceFrames: 0,
-    };
-
-    const stream = streamRef.current;
-
-    // FIX #3: attach stream to floating test video now that we're in test phase
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      // Clear the check-screen ref so it doesn't hold the stream any longer
-      if (checkVideoRef.current) checkVideoRef.current.srcObject = null;
-    }
-
-    if (!stream) {
-      // No camera — proctoring unavailable but test can still run
-      return () => {};
-    }
-
-    // FIX #6: set cameraAvailable=true as soon as we know the stream exists.
-    // The detector load failure path no longer silently clears this flag.
-    localMetricsRef.current.cameraAvailable = true;
-
-    const DETECTOR_INTERVAL = 700; // ms between samples
-
-    async function startDetector() {
+    // Start the backend proctoring session
+    async function startSession() {
       try {
-        // FIX #5: FilesetResolver and FaceDetector.createFromOptions are cached
-        // by the MediaPipe library across calls in the same page session, so
-        // re-creating them on the same URL is fast (no re-download).
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm'
-        );
-        if (cancelled) return;
-
-        const detector = await FaceDetector.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite',
-          },
-          runningMode:           'VIDEO',
-          minDetectionConfidence: 0.45,
-        });
-        if (cancelled) { detector.close(); return; }
-        detectorRef.current = detector;
-
-        function runLoop() {
-          if (cancelled) return;
-
-          const video    = videoRef.current;
-          const detector = detectorRef.current;
-          if (!video || !detector || video.readyState < 2 || !video.videoWidth) {
-            proctorLoopRef.current = setTimeout(runLoop, DETECTOR_INTERVAL);
-            return;
-          }
-
-          try {
-            const out        = detector.detectForVideo(video, performance.now());
-            const detections = Array.isArray(out?.detections) ? out.detections : [];
-            const m          = localMetricsRef.current;
-
-            m.totalFrames += 1;
-
-            if (detections.length === 0) {
-              m.noFaceFrames += 1;
-            } else {
-              if (detections.length > 1) m.multiFaceFrames += 1;
-
-              // FIX #4: tighter bounding box — face center must be within the
-              // middle 40% horizontally (0.30–0.70) and 50% vertically (0.25–0.75).
-              // Previously the zone was so wide almost everything passed.
-              const box = detections[0]?.boundingBox;
-              if (box) {
-                const cx = (box.originX + box.width  / 2) / video.videoWidth;
-                const cy = (box.originY + box.height / 2) / video.videoHeight;
-                if (cx < 0.30 || cx > 0.70 || cy < 0.25 || cy > 0.75) {
-                  m.offCenterFrames += 1;
-                }
-              }
-            }
-          } catch (_) {
-            // Transient detector errors — swallow and keep sampling
-          }
-
-          proctorLoopRef.current = setTimeout(runLoop, DETECTOR_INTERVAL);
-        }
-
-        runLoop();
-
+        const res  = await fetch('/api/proctoring/start/', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start proctoring session');
+        proctorSidRef.current = data.session_id;
       } catch (err) {
-        // FIX #6: detector failed to load, but camera IS available.
-        // Keep cameraAvailable=true so the results page shows real frame data.
-        console.warn('MediaPipe detector failed to load:', err);
-        // We still have the camera; just don't run the detection loop.
+        console.warn('Proctoring session failed to start:', err.message);
+        return; // no session — frame loop won't run
       }
+
+      // Begin frame push loop
+      scheduleFrame();
     }
 
-    startDetector();
+    function scheduleFrame() {
+      if (cancelled) return;
+      proctorLoopRef.current = setTimeout(pushFrame, PROCTOR_FRAME_INTERVAL);
+    }
+
+    async function pushFrame() {
+      if (cancelled || proctorInFlight.current || !proctorSidRef.current) {
+        scheduleFrame();
+        return;
+      }
+
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth) {
+        scheduleFrame();
+        return;
+      }
+
+      // Resize to cap bandwidth
+      const scale  = Math.min(1, PROCTOR_FRAME_MAX_WIDTH / video.videoWidth);
+      canvas.width  = Math.round(video.videoWidth  * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      proctorInFlight.current = true;
+      try {
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, 'image/jpeg', 0.7)
+        );
+        if (blob && !cancelled && proctorSidRef.current) {
+          const form = new FormData();
+          form.append('session_id', proctorSidRef.current);
+          form.append('frame', blob, 'frame.jpg');
+          await fetch('/api/proctoring/frame/', { method: 'POST', body: form });
+        }
+      } catch (_) {
+        // Swallow individual frame errors — network blip, keep going
+      } finally {
+        proctorInFlight.current = false;
+      }
+
+      scheduleFrame();
+    }
+
+    startSession();
 
     return () => {
       cancelled = true;
       clearTimeout(proctorLoopRef.current);
-      if (detectorRef.current) {
-        detectorRef.current.close();
-        detectorRef.current = null;
-      }
-      // Stop camera tracks when leaving test phase
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
-      }
+      // Do NOT stop the stream here — owned by the unmount effect above.
     };
-  }, [questions.length]);  // re-runs if questions are regenerated
+  }, [questions.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Score + finish ───────────────────────────────────────────────────────
   const handleFinish = useCallback(async () => {
@@ -525,25 +421,54 @@ export default function MockTest() {
       }
     });
 
-    // Stop detection loop immediately
+    // Stop frame loop
     clearTimeout(proctorLoopRef.current);
-    if (detectorRef.current) { detectorRef.current.close(); detectorRef.current = null; }
 
-    // Build report from whatever we sampled
-    const procResult   = buildProctorResultFromMetrics(localMetricsRef.current);
-    const proctorReport = buildProctorReport(localMetricsRef.current, procResult, { topic, difficulty, count });
+    // Stop the backend proctoring session and get the verdict
+    let procResult = buildFallbackProctorResult(Boolean(proctorSidRef.current));
+    if (proctorSidRef.current) {
+      try {
+        const res  = await fetch('/api/proctoring/stop/', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ session_id: proctorSidRef.current }),
+        });
+        const data = await res.json();
+        if (res.ok && data) {
+          // Backend returns the verdict directly — normalise to our shape
+          procResult = {
+            cheating:               Boolean(data.cheating),
+            camera_available:       true,
+            face_not_in_frame_pct:  Number((data.face_not_in_frame_pct ?? 0).toFixed(1)),
+            not_looking_pct:        Number((data.not_looking_pct       ?? 0).toFixed(1)),
+            multi_face_pct:         Number((data.multi_face_pct        ?? 0).toFixed(1)),
+            total_frames:           Number(data.total_frames           ?? 0),
+            flags:                  Array.isArray(data.flags) ? data.flags : [],
+            cheating_probability:   data.cheating_probability ?? null,
+            provider:               data.provider || 'opencv',
+          };
+        }
+      } catch (err) {
+        console.warn('Could not stop proctoring session:', err.message);
+      }
+      proctorSidRef.current = null;
+    }
 
+    const proctorReport = buildProctorReportFromBackend(procResult, { topic, difficulty, count });
+
+    // Persist report
     try {
       localStorage.setItem(PROCTOR_REPORT_STORAGE_KEY, JSON.stringify(proctorReport));
-    } catch (_) { /* private/quota */ }
+    } catch (_) { /* quota / private mode */ }
 
+    // Also upload to backend for server-side storage
     try {
       await fetch('/api/proctoring/report/', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(proctorReport),
       });
-    } catch (_) { /* optional upload */ }
+    } catch (_) { /* optional */ }
 
     // Stop camera
     if (streamRef.current) {
@@ -555,13 +480,13 @@ export default function MockTest() {
       state: {
         questions,
         answers,
-        score:      Number(finalScore.toFixed(2)),
-        maxScore:   questions.length,
+        score:        Number(finalScore.toFixed(2)),
+        maxScore:     questions.length,
         questionScores,
         topic,
         difficulty,
-        timeTaken:  questions.length * 90 - timeLeft,
-        proctor:    procResult,
+        timeTaken:    questions.length * 90 - timeLeft,
+        proctor:      procResult,
         proctorReport,
       },
     });
@@ -586,14 +511,6 @@ export default function MockTest() {
         camState={camState}
         camError={camError}
         onStart={() => { if (camState === 'granted') setPhase('test'); }}
-        onSkip={() => {
-          // User opts out of camera — stop the stream and go straight to test
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop());
-            streamRef.current = null;
-          }
-          setPhase('test');
-        }}
       />
     );
   }
@@ -628,7 +545,7 @@ export default function MockTest() {
           <div className="test-topbar-right">
             <span className="proctor-pill">
               <ShieldCheck size={12} strokeWidth={2} />
-              {streamRef.current ? 'Proctored' : 'Unproctored'}
+              {cameraActive ? 'Proctored' : 'Unproctored'}
             </span>
             <div className="test-progress-text">{answered}/{questions.length} answered</div>
           </div>
@@ -707,8 +624,8 @@ export default function MockTest() {
 
       </div>
 
-      {/* Floating camera preview — only shown when camera is active */}
-      {streamRef.current && (
+      {/* Floating camera preview */}
+      {cameraActive && (
         <div className="proctor-cam-wrap">
           <video ref={videoRef} autoPlay muted playsInline className="proctor-cam-video" />
           <div className="proctor-cam-bar">

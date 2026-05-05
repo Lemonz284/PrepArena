@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { Bot, User, Mic, MicOff, FileText, Volume2 } from 'lucide-react';
+import { Bot, User, Mic, MicOff, FileText, Volume2, ShieldCheck, Camera, CameraOff, Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import './AIInterview.css';
@@ -8,6 +8,8 @@ import './AIInterview.css';
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 const TOTAL_QUESTIONS = 6;
 const API_BASE        = 'http://127.0.0.1:8000';
+const PROCTOR_FRAME_INTERVAL  = 900;
+const PROCTOR_FRAME_MAX_WIDTH = 320;
 
 const OPENING_QUESTION = (ctx) =>
   `Hi! I'm your AI interviewer today. I've reviewed the ${ctx.role || 'role'} position${ctx.company ? ` at ${ctx.company}` : ''}. Let's get started — can you briefly walk me through your background and what excites you about this opportunity?`;
@@ -66,6 +68,16 @@ export default function AIInterview() {
   const recognitionRef = useRef(null);
   const bottomRef      = useRef();
 
+  /* ── Proctoring state ─────────────────────────────────────────────────── */
+  const [cameraActive,  setCameraActive]  = useState(false);
+  const videoRef        = useRef(null);
+  const streamRef       = useRef(null);
+  const canvasRef       = useRef(null);
+  const proctorSidRef   = useRef(null);
+  const proctorLoopRef  = useRef(null);
+  const proctorInFlight = useRef(false);
+  const interviewStartedRef = useRef(false);
+
   /* ── Save session when done ──────────────────────────────────────────── */
   useEffect(() => {
     if (!ended || savedRef.current) return;
@@ -83,6 +95,95 @@ export default function AIInterview() {
       status: 'Reviewed',
     });
   }, [ended]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Request camera on mount ──────────────────────────────────────────── */
+  useEffect(() => {
+    let mounted = true;
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then((stream) => {
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        setCameraActive(true);
+      })
+      .catch(() => { /* camera denied — interview runs without proctoring */ });
+    return () => { mounted = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Stop camera on unmount ──────────────────────────────────────────── */
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  /* ── Attach stream to floating video ─────────────────────────────────── */
+  useEffect(() => {
+    if (!cameraActive || !videoRef.current || !streamRef.current) return;
+    videoRef.current.srcObject = streamRef.current;
+    videoRef.current.play().catch(() => {});
+  }, [cameraActive]);
+
+  /* ── Start proctoring frame loop once camera is active ────────────────── */
+  useEffect(() => {
+    if (!cameraActive || !streamRef.current || interviewStartedRef.current) return;
+    interviewStartedRef.current = true;
+
+    const canvas = document.createElement('canvas');
+    canvasRef.current = canvas;
+    let cancelled = false;
+
+    async function startSession() {
+      try {
+        const res  = await fetch(`${API_BASE}/api/proctoring/start/`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'proctoring start failed');
+        proctorSidRef.current = data.session_id;
+      } catch (err) {
+        console.warn('Proctoring session failed to start:', err.message);
+        return;
+      }
+      scheduleFrame();
+    }
+
+    function scheduleFrame() {
+      if (cancelled) return;
+      proctorLoopRef.current = setTimeout(pushFrame, PROCTOR_FRAME_INTERVAL);
+    }
+
+    async function pushFrame() {
+      if (cancelled || proctorInFlight.current || !proctorSidRef.current) {
+        scheduleFrame(); return;
+      }
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth) {
+        scheduleFrame(); return;
+      }
+      const scale = Math.min(1, PROCTOR_FRAME_MAX_WIDTH / video.videoWidth);
+      canvas.width  = Math.round(video.videoWidth  * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      proctorInFlight.current = true;
+      try {
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
+        if (blob && !cancelled && proctorSidRef.current) {
+          const form = new FormData();
+          form.append('session_id', proctorSidRef.current);
+          form.append('frame', blob, 'frame.jpg');
+          await fetch(`${API_BASE}/api/proctoring/frame/`, { method: 'POST', body: form });
+        }
+      } catch (_) { /* swallow individual frame errors */ }
+      finally { proctorInFlight.current = false; }
+      scheduleFrame();
+    }
+
+    startSession();
+    return () => { cancelled = true; clearTimeout(proctorLoopRef.current); };
+  }, [cameraActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── First question on mount ─────────────────────────────────────────── */
   useEffect(() => {
@@ -174,7 +275,25 @@ export default function AIInterview() {
     const nextQNum = qIndex + 1; // question number we just answered
 
     if (nextQNum >= TOTAL_QUESTIONS) {
-      // Interview is over
+      // Interview is over — stop proctoring first
+      clearTimeout(proctorLoopRef.current);
+      if (proctorSidRef.current) {
+        try {
+          await fetch(`${API_BASE}/api/proctoring/stop/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: proctorSidRef.current }),
+          });
+        } catch (_) { /* optional */ }
+        proctorSidRef.current = null;
+      }
+      // Stop camera
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      setCameraActive(false);
+
       setLoading(true);
       setTimeout(() => {
         const closing = "Thank you for your time! That wraps up our session. You handled that well — your report will be on your dashboard shortly. Good luck!";
@@ -391,6 +510,18 @@ export default function AIInterview() {
         )}
 
       </div>
+
+      {/* Floating camera preview */}
+      {cameraActive && (
+        <div className="iv-proctor-cam-wrap">
+          <video ref={videoRef} autoPlay muted playsInline className="iv-proctor-cam-video" />
+          <div className="iv-proctor-cam-bar">
+            <ShieldCheck size={10} strokeWidth={2.5} />
+            <span>Proctored · Live</span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

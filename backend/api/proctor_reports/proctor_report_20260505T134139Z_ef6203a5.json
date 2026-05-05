@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-05-05T13:41:39.616Z",
+  "provider": "opencv",
+  "result": {
+    "cheating": false,
+    "camera_available": true,
+    "face_not_in_frame_pct": 20,
+    "not_looking_pct": 0,
+    "multi_face_pct": 0,
+    "total_frames": 5,
+    "flags": [
+      "Face absent 20.0% of the time"
+    ],
+    "cheating_probability": 0.041857801377773285,
+    "provider": "opencv"
+  },
+  "session": {
+    "topic": "Mathematics",
+    "difficulty": "Easy",
+    "question_count": 5
+  }
+}

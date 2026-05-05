@@ -249,6 +249,17 @@
 .proctor-cheat .proctor-card-header   { color: var(--red); }
 .proctor-unavail .proctor-card-header { color: var(--text-muted); }
 
+.proctor-noframes-note {
+  font-size: 0.82rem;
+  color: var(--yellow);
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
 .proctor-frames {
   margin-left: auto;
   font-size: 0.75rem;

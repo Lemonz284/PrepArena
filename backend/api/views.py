@@ -32,15 +32,16 @@ def generate_mock_test(request):
         jd_text     = (body.get("jd_text")     or "").strip()
 
         primary_key = os.getenv("GROQ_API_KEY", "").strip()
-        fallback_key = os.getenv("GROQ_API_KEY2", "").strip()
+        fallback_key1 = os.getenv("GROQ_API_KEY2", "").strip()
+        fallback_key2 = os.getenv("GROQ_API_KEY3", "").strip()
 
         candidate_keys = []
-        for k in (primary_key, fallback_key):
+        for k in (primary_key, fallback_key1, fallback_key2):
             if k and k != "gsk_your_actual_key_here" and k not in candidate_keys:
                 candidate_keys.append(k)
 
         if not candidate_keys:
-            return JsonResponse({"error": "No valid Groq API key configured. Add GROQ_API_KEY or GROQ_API_KEY2 in backend/.env"}, status=500)
+            return JsonResponse({"error": "No valid Groq API key configured. Add GROQ_API_KEY, GROQ_API_KEY2 or GROQ_API_KEY3 in backend/.env"}, status=500)
 
         schema_block = (
             "Return ONLY a valid JSON array with zero extra text, markdown, or explanation. "
@@ -175,9 +176,13 @@ def generate_mock_test(request):
 def generate_mock_test_review(request):
     try:
         body = json.loads(request.body)
-        fallback_key = os.getenv("GROQ_API_KEY2", "").strip()
-        if not fallback_key:
-            return JsonResponse({"error": "GROQ_API_KEY2 is not configured"}, status=500)
+        primary_key = os.getenv("GROQ_API_KEY", "").strip()
+        fallback_key1 = os.getenv("GROQ_API_KEY2", "").strip()
+        fallback_key2 = os.getenv("GROQ_API_KEY3", "").strip()
+        candidate_keys = [k for k in (primary_key, fallback_key1, fallback_key2) if k and k != "gsk_your_actual_key_here"]
+        
+        if not candidate_keys:
+            return JsonResponse({"error": "No valid Groq API key configured."}, status=500)
 
         questions = body.get("questions") if isinstance(body.get("questions"), list) else []
         compact_questions = []
@@ -211,13 +216,23 @@ def generate_mock_test_review(request):
             f"RESULT_DATA:\n{json.dumps(signal, ensure_ascii=True)}"
         )
 
-        client = Groq(api_key=fallback_key)
-        completion = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            max_completion_tokens=1200,
-        )
+        completion = None
+        last_err = None
+        for api_key in candidate_keys:
+            try:
+                client = Groq(api_key=api_key)
+                completion = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.4,
+                    max_completion_tokens=1200,
+                )
+                break
+            except Exception as err:
+                last_err = err
+
+        if completion is None:
+            raise RuntimeError(f"Groq request failed for all configured keys: {last_err}")
 
         raw = (completion.choices[0].message.content or "").strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -379,10 +394,11 @@ def interview_next(request):
         if not isinstance(history, list):
             history = []
 
-        # Use primary key first, fallback second
+        # Use primary key first, then fallbacks
         primary_key  = os.getenv("GROQ_API_KEY",  "").strip()
-        fallback_key = os.getenv("GROQ_API_KEY2", "").strip()
-        candidate_keys = [k for k in (primary_key, fallback_key)
+        fallback_key1 = os.getenv("GROQ_API_KEY2", "").strip()
+        fallback_key2 = os.getenv("GROQ_API_KEY3", "").strip()
+        candidate_keys = [k for k in (primary_key, fallback_key1, fallback_key2)
                           if k and k != "gsk_your_actual_key_here"]
         if not candidate_keys:
             return JsonResponse({"error": "No valid Groq API key configured."}, status=500)
@@ -397,6 +413,38 @@ def interview_next(request):
         context_block = "\n\n".join(context_lines)
 
         is_last = (question_number >= total_questions)
+
+        # If frontend supplied proctoring verdict, act on it immediately.
+        proctor_info = body.get("proctor") if isinstance(body.get("proctor"), dict) else None
+        if proctor_info:
+            try:
+                cheating = bool(proctor_info.get("cheating", False))
+                prob = float(proctor_info.get("cheating_probability") or 0.0)
+                camera_ok = bool(proctor_info.get("camera_available", True))
+            except Exception:
+                cheating = False
+                prob = 0.0
+                camera_ok = True
+
+            # Camera not available → ask user to enable it before continuing
+            if not camera_ok:
+                return JsonResponse({
+                    "reaction": "Camera appears unavailable.",
+                    "next_turn": "Please enable your camera and ensure it's working before continuing.",
+                    "thinking_phrase": _random.choice(THINKING_FILLER),
+                    "is_last": True,
+                    "proctor": proctor_info,
+                })
+
+            # Strong proctor flag → pause/stop the interview and surface the verdict
+            if cheating or prob >= 0.60:
+                return JsonResponse({
+                    "reaction": "Proctor flagged anomalies during the session.",
+                    "next_turn": "The session has been paused due to proctor alerts. Please resolve the issue and retry.",
+                    "thinking_phrase": _random.choice(THINKING_FILLER),
+                    "is_last": True,
+                    "proctor": proctor_info,
+                })
 
         if is_last:
             next_instruction = (
