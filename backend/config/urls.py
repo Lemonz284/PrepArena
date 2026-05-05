@@ -17,7 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from api.views import generate_mock_test, generate_mock_test_review, start_proctoring, push_proctoring_frame, stop_proctoring, upload_proctor_report, interview_next
+from api.views import generate_mock_test, generate_mock_test_review, start_proctoring, push_proctoring_frame, stop_proctoring, upload_proctor_report, interview_next, generate_interview_review
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
@@ -29,6 +29,7 @@ urlpatterns = [
     path("api/proctoring/stop/",      stop_proctoring,         name="stop_proctoring"),
     path("api/proctoring/report/",    upload_proctor_report,   name="upload_proctor_report"),
     path("api/interview/next/",        interview_next,           name="interview_next"),
+    path("api/interview/review/",      generate_interview_review, name="generate_interview_review"),
     path('api/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path("api/", include("api.urls")),

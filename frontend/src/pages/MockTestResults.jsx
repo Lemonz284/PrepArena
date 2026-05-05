@@ -255,11 +255,10 @@ export default function MockTestResults() {
                     )}
                   </div>
 
-                  {/* No-frames notice */}
                   {noFrames && p?.camera_available && (
                     <div className="proctor-noframes-note">
                       ⚠ Camera was active but the face detector didn't process any frames
-                      (the test may have been too short, or MediaPipe was still loading).
+                      (the test may have been too short, or the face detector was still loading).
                       No integrity score is available for this session.
                     </div>
                   )}
@@ -285,6 +284,14 @@ export default function MockTestResults() {
                           {p.multi_face_pct}%
                         </span>
                       </div>
+                      {p.window_switches !== undefined && (
+                        <div className="proctor-stat" title="Number of times you navigated away from the test tab">
+                          <span className="pstat-label">Tab Switches</span>
+                          <span className={`pstat-value ${p.window_switches > 0 ? 'pstat-bad' : 'pstat-ok'}`}>
+                            {p.window_switches}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 

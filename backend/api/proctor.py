@@ -25,17 +25,13 @@ import threading
 import uuid
 
 # ── Cascade paths ─────────────────────────────────────────────────────────────
-_ML_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    'ML', 'FaceInFrame', 'Smart-Face-Detector',
-)
-_FACE_XML = os.path.join(_ML_DIR, 'haarcascade_frontalface_default.xml')
+_FACE_XML = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 
 # ── Lenient cheating thresholds ───────────────────────────────────────────────
 # Both values must be EXCEEDED before a flag is raised.
 # This intentionally avoids false-positives for normal webcam use.
-FACE_MISSING_THRESHOLD = 20.0   # face absent > 20 % of frames → flag
-MULTI_FACE_THRESHOLD   =  5.0   # multiple faces > 5 % of frames → flag
+FACE_MISSING_THRESHOLD = 30.0   # face absent > 30 % of frames → flag
+MULTI_FACE_THRESHOLD   = 10.0   # multiple faces > 10 % of frames → flag
 
 # Weighted cheating score formula:
 #   score = 0.55 * (face_not_pct / FACE_MISSING_THRESHOLD)
@@ -127,9 +123,9 @@ def _analyse_frame(frame_bgr, tracked: list):
     gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
     # ── Frontal face detection ────────────────────────────────────────────────
-    # scaleFactor=1.1 catches more angles; minNeighbors=3 is lenient to reduce
-    # false absences (e.g. when candidate tilts head slightly).
-    raw_frontal = _face_cas.detectMultiScale(gray, 1.1, 3, minSize=(40, 40))
+    # scaleFactor=1.1 catches more angles; minNeighbors=4 provides a good
+    # balance between sensitivity and reducing false positive background artifacts.
+    raw_frontal = _face_cas.detectMultiScale(gray, 1.1, 4, minSize=(40, 40))
     faces: list[tuple] = [tuple(f) for f in raw_frontal] if len(raw_frontal) > 0 else []
 
     # ── Profile face detection ────────────────────────────────────────────────
@@ -209,27 +205,30 @@ class _Session:
             item = self._q.get()
             if item is _SENTINEL:
                 break
-            jpeg_bytes = item
-            arr   = np.frombuffer(jpeg_bytes, dtype=np.uint8)
-            frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            if frame is None:
-                continue
+            try:
+                jpeg_bytes = item
+                arr   = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+                frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
 
-            new_tracked, face_count = _analyse_frame(frame, self._tracked)
+                new_tracked, face_count = _analyse_frame(frame, self._tracked)
 
-            with self._lock:
-                self._tracked = new_tracked
-                self.total_frames += 1
+                with self._lock:
+                    self._tracked = new_tracked
+                    self.total_frames += 1
 
-                if face_count == 0:
-                    self.no_face_frames += 1
-                    multi_streak = 0
-                elif face_count > 1:
-                    multi_streak += 1
-                    if multi_streak >= _MULTI_STREAK_REQ:
-                        self.multi_face_frames += 1
-                else:
-                    multi_streak = 0
+                    if face_count == 0:
+                        self.no_face_frames += 1
+                        multi_streak = 0
+                    elif face_count > 1:
+                        multi_streak += 1
+                        if multi_streak >= _MULTI_STREAK_REQ:
+                            self.multi_face_frames += 1
+                    else:
+                        multi_streak = 0
+            except Exception as e:
+                print(f"[Proctor Worker] Frame analysis error: {e}")
 
     def push(self, jpeg_bytes: bytes):
         with self._lock:

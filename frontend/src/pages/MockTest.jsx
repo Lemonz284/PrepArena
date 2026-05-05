@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, Clock, ShieldCheck, ShieldOff, Camera, CameraOff } from 'lucide-react';
+import { Loader2, AlertCircle, Clock, ShieldCheck, ShieldOff, Camera, CameraOff, AlertTriangle } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import './MockTest.css';
 
@@ -254,6 +254,10 @@ export default function MockTest() {
   const proctorLoopRef   = useRef(null);   // setTimeout handle
   const proctorInFlight  = useRef(false);  // prevent overlapping POSTs
 
+  const [windowSwitchCount, setWindowSwitchCount] = useState(0);
+  const [showSwitchWarning, setShowSwitchWarning] = useState(false);
+  const [isTerminated, setIsTerminated] = useState(false);
+
   // ── Request camera on mount ──────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
@@ -314,6 +318,28 @@ export default function MockTest() {
   useEffect(() => {
     if (phase === 'test') fetchQuestions();
   }, [phase, fetchQuestions]);
+
+  // ── Window Switch Detection ──────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'test') return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setWindowSwitchCount(prev => {
+          const next = prev + 1;
+          if (next > 3) {
+            setIsTerminated(true);
+          } else {
+            setShowSwitchWarning(true);
+          }
+          return next;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [phase]);
 
   // ── Start OpenCV proctoring once questions are loaded ────────────────────
   useEffect(() => {
@@ -446,12 +472,15 @@ export default function MockTest() {
             flags:                  Array.isArray(data.flags) ? data.flags : [],
             cheating_probability:   data.cheating_probability ?? null,
             provider:               data.provider || 'opencv',
+            window_switches:        windowSwitchCount,
           };
         }
       } catch (err) {
         console.warn('Could not stop proctoring session:', err.message);
       }
       proctorSidRef.current = null;
+    } else {
+      procResult.window_switches = windowSwitchCount;
     }
 
     const proctorReport = buildProctorReportFromBackend(procResult, { topic, difficulty, count });
@@ -631,6 +660,46 @@ export default function MockTest() {
           <div className="proctor-cam-bar">
             <ShieldCheck size={10} strokeWidth={2.5} />
             <span>Proctored · Live</span>
+          </div>
+        </div>
+      )}
+
+      {/* Termination Overlay */}
+      {isTerminated && (
+        <div className="window-warning-overlay">
+          <div className="window-warning-card" style={{ borderColor: '#991b1b' }}>
+            <AlertTriangle size={64} style={{ color: '#991b1b', margin: '0 auto 1.5rem', display: 'block' }} />
+            <h2 className="window-warning-title">Test Terminated</h2>
+            <p className="window-warning-text">
+              You have exceeded the maximum allowed number of window switches (3). 
+              Your test has been forcefully terminated to maintain integrity.
+            </p>
+            <button 
+              className="window-warning-btn" style={{ background: '#991b1b' }}
+              onClick={handleFinish}
+            >
+              Submit Partial Results
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Window Switch Warning Overlay */}
+      {!isTerminated && showSwitchWarning && (
+        <div className="window-warning-overlay">
+          <div className="window-warning-card">
+            <AlertTriangle size={64} className="window-warning-icon" />
+            <h2 className="window-warning-title">Window Switch Detected</h2>
+            <p className="window-warning-text">
+              Navigating away from the test tab is not allowed and has been recorded. 
+              Continuing to switch windows may negatively impact your integrity score.
+            </p>
+            <button 
+              className="window-warning-btn"
+              onClick={() => setShowSwitchWarning(false)}
+            >
+              I Understand
+            </button>
           </div>
         </div>
       )}

@@ -525,3 +525,68 @@
   .cam-meta-divider { display: none; }
   .cam-meta-item { flex: 1 1 45%; border-bottom: 1px solid var(--border); }
 }
+
+/* ── Window Switch Warning Overlay ─────────────────────────────────────── */
+.window-warning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.window-warning-card {
+  background: var(--surface);
+  border: 2px solid #ef4444;
+  border-radius: 16px;
+  padding: 3rem 2.5rem;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(239, 68, 68, 0.2);
+}
+
+.window-warning-icon {
+  color: #ef4444;
+  margin-bottom: 1.5rem;
+  animation: pulse-timer 1s infinite;
+}
+
+.window-warning-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 1rem;
+}
+
+.window-warning-text {
+  font-size: 1.05rem;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin: 0 0 2rem;
+}
+
+.window-warning-btn {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.85rem 2rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.window-warning-btn:hover {
+  background: #dc2626;
+}

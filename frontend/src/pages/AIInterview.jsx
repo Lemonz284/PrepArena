@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   Bot, User, Mic, MicOff, FileText, Volume2, ShieldCheck,
-  Loader2, Code2, Layers, Brain, MessageSquare, ChevronDown
+  Loader2, Code2, Layers, Brain, MessageSquare, ChevronDown, Camera, CameraOff, Download, AlertTriangle
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
@@ -79,6 +79,91 @@ const Q_TYPE_META = {
   'past-experience':   { label: 'Past Experience',   icon: FileText,      color: '#f472b6' },
 };
 
+function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, camError, onStart }) {
+  return (
+    <div className="iv-root">
+      <Navbar />
+      <div className="cam-check-shell">
+        <div className="cam-check-card">
+          <div className="cam-check-header">
+            <ShieldCheck size={22} strokeWidth={2} className="cam-check-icon" />
+            <h2 className="cam-check-title">Camera Check</h2>
+            <p className="cam-check-subtitle">
+              This interview is <strong>proctored</strong>. Camera access is required to start.
+            </p>
+          </div>
+
+          <div className="cam-check-preview-wrap">
+            <video
+              ref={checkVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`cam-check-feed ${camState === 'granted' ? 'cam-active' : ''}`}
+            />
+            {camState !== 'granted' && (
+              <div className="cam-check-overlay">
+                {camState === 'requesting' && (
+                  <>
+                    <Loader2 size={28} strokeWidth={1.5} className="cam-spin" />
+                    <span>Waiting for camera permission…</span>
+                  </>
+                )}
+                {camState === 'denied' && (
+                  <>
+                    <CameraOff size={28} strokeWidth={1.5} style={{ color:'#f87171' }} />
+                    <span style={{ color:'#f87171' }}>Camera blocked</span>
+                    <span className="cam-check-err-detail">{camError || 'Permission was denied'}</span>
+                  </>
+                )}
+              </div>
+            )}
+            {camState === 'granted' && (
+              <div className="cam-check-live-badge">
+                <span className="cam-live-dot" />
+                Live Preview
+              </div>
+            )}
+          </div>
+
+          <div className={`cam-status-row ${camState === 'granted' ? 'cam-ok' : camState === 'denied' ? 'cam-err' : 'cam-wait'}`}>
+            {camState === 'granted'    && <><Camera    size={14} strokeWidth={2} /> Camera ready — face visible in frame before starting</>}
+            {camState === 'requesting' && <><Loader2   size={14} strokeWidth={2} className="cam-spin" /> Requesting camera access…</>}
+            {camState === 'denied'     && <><CameraOff size={14} strokeWidth={2} /> Camera blocked — enable access to continue</>}
+          </div>
+
+          <div className="cam-check-meta">
+            <div className="cam-meta-item">
+              <span className="cam-meta-label">Topic</span>
+              <span className="cam-meta-val">{topic}</span>
+            </div>
+            <div className="cam-meta-divider" />
+            <div className="cam-meta-item">
+              <span className="cam-meta-label">Difficulty</span>
+              <span className="cam-meta-val">{difficulty}</span>
+            </div>
+            <div className="cam-meta-divider" />
+            <div className="cam-meta-item">
+              <span className="cam-meta-label">Questions</span>
+              <span className="cam-meta-val">{count}</span>
+            </div>
+          </div>
+
+          <div className="cam-check-actions">
+            <button
+              className="nav-btn submit-btn cam-start-btn"
+              onClick={onStart}
+              disabled={camState !== 'granted'}
+            >
+              {camState === 'granted' ? '🚀 Begin Interview' : 'Waiting for camera…'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Component ──────────────────────────────────────────────────────────── */
 export default function AIInterview() {
   const location  = useLocation();
@@ -96,9 +181,13 @@ export default function AIInterview() {
   const [qIndex,         setQIndex]         = useState(0);
   const [loading,        setLoading]        = useState(false);
   const [ended,          setEnded]          = useState(false);
-  const [phase,          setPhase]          = useState('idle');
+  const [phase,          setPhase]          = useState('cam-check');
+  const [camState,       setCamState]       = useState('requesting');
+  const [camError,       setCamError]       = useState(null);
   const [currentQType,   setCurrentQType]   = useState('behavioral');
   const [companyStyle,   setCompanyStyle]   = useState(null);
+  const [reviewData,     setReviewData]     = useState(null);
+  const [proctorResult,  setProctorResult]  = useState(null);
 
   /* Voice state */
   const [isListening,    setIsListening]    = useState(false);
@@ -113,6 +202,7 @@ export default function AIInterview() {
   const currentQRef   = useRef('');
   const recognitionRef = useRef(null);
   const bottomRef      = useRef();
+  const checkVideoRef  = useRef(null);
 
   /* ── Proctoring state ─────────────────────────────────────────────────── */
   const [cameraActive,  setCameraActive]  = useState(false);
@@ -123,6 +213,11 @@ export default function AIInterview() {
   const proctorLoopRef  = useRef(null);
   const proctorInFlight = useRef(false);
   const interviewStartedRef = useRef(false);
+  
+  /* ── Window Switch state ──────────────────────────────────────────────── */
+  const [windowSwitchCount, setWindowSwitchCount] = useState(0);
+  const [showSwitchWarning, setShowSwitchWarning] = useState(false);
+  const [isTerminated, setIsTerminated] = useState(false);
 
   /* ── Save session when done ──────────────────────────────────────────── */
   useEffect(() => {
@@ -141,16 +236,31 @@ export default function AIInterview() {
     });
   }, [ended, addSession, sessionLabel]);
 
-  /* ── Request camera on mount ──────────────────────────────────────────── */
+  /* ── Request camera on mount & Load html2pdf ───────────────────────────── */
   useEffect(() => {
     let mounted = true;
     navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       .then((stream) => {
         if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
-        setCameraActive(true);
+        setCamState('granted');
+        if (checkVideoRef.current) checkVideoRef.current.srcObject = stream;
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (!mounted) return;
+        setCamState('denied');
+        setCamError(err.message);
+      });
+
+    // Dynamically load html2pdf.js
+    if (!document.getElementById('html2pdf-script')) {
+      const script = document.createElement('script');
+      script.id = 'html2pdf-script';
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+
     return () => { mounted = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -230,6 +340,7 @@ export default function AIInterview() {
 
   /* ── First question on mount ─────────────────────────────────────────── */
   useEffect(() => {
+    if (phase !== 'starting') return;
     setLoading(true);
     setTimeout(() => {
       const openingText = hasDocContext
@@ -239,9 +350,32 @@ export default function AIInterview() {
       setCurrentQType('behavioral');
       setMessages([{ role: 'ai', text: openingText, qType: 'behavioral' }]);
       setLoading(false);
+      setPhase('idle');
       setTimeout(() => speak(openingText), 300);
     }, 1200);
-  }, [company, role, hasDocContext, jdText, resumeText]);
+  }, [phase, company, role, hasDocContext, jdText, resumeText]);
+
+  /* ── Window Switch Detection ──────────────────────────────────────────── */
+  useEffect(() => {
+    if (ended || phase === 'cam-check' || phase === 'reviewing' || phase === 'done') return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setWindowSwitchCount(prev => {
+          const next = prev + 1;
+          if (next > 3) {
+             setIsTerminated(true);
+          } else {
+             setShowSwitchWarning(true);
+          }
+          return next;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [ended, phase]);
 
   /* ── Auto-scroll ─────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -295,6 +429,75 @@ export default function AIInterview() {
     }
   }, [isListening, liveTranscript]);
 
+  /* ── PDF Download Handler ────────────────────────────────────────────── */
+  const handleDownloadPDF = () => {
+    const element = document.getElementById('iv-report-content');
+    if (!element || !window.html2pdf) return;
+    const opt = {
+      margin:       [0.5, 0.5, 0.5, 0.5],
+      filename:     `Interview_Report_${company || 'AI'}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    window.html2pdf().set(opt).from(element).save();
+  };
+
+  /* ── End Interview Sequence ──────────────────────────────────────────── */
+  const endInterviewSequence = async (isForced = false) => {
+    setIsTerminated(false); // hide termination overlay if it was open
+    clearTimeout(proctorLoopRef.current);
+    let pResult = null;
+    if (proctorSidRef.current) {
+      try {
+        const res = await fetch(`${API_BASE}/api/proctoring/stop/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: proctorSidRef.current }),
+        });
+        pResult = await res.json();
+        setProctorResult(pResult);
+      } catch (_) {}
+      proctorSidRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+
+    setLoading(true);
+    const closing = isForced
+      ? "This interview has been forcefully terminated due to a proctoring violation. Please wait while your partial report is compiled."
+      : "Thank you for your time! That wraps up our session. Please wait while I generate your comprehensive review.";
+    setMessages((prev) => [...prev, { role: 'ai', text: closing, qType: 'behavioral' }]);
+    speak(closing);
+    
+    setPhase('reviewing');
+
+    try {
+      const revRes = await fetch(`${API_BASE}/api/interview/review/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          history: historyRef.current,
+          role,
+          company,
+          proctor: pResult ? { ...pResult, window_switches: windowSwitchCount } : { window_switches: windowSwitchCount }
+        })
+      });
+      const revData = await revRes.json();
+      if (!revRes.ok) throw new Error(revData.error || 'Failed to generate review');
+      setReviewData(revData);
+    } catch (err) {
+      console.error('Review generation failed:', err);
+    }
+
+    setLoading(false);
+    setEnded(true);
+    setPhase('done');
+  };
+
   /* ── Submit answer ───────────────────────────────────────────────────── */
   async function handleSend() {
     if (isListening) {
@@ -316,32 +519,7 @@ export default function AIInterview() {
     const nextQNum = qIndex + 1;
 
     if (nextQNum >= TOTAL_QUESTIONS) {
-      clearTimeout(proctorLoopRef.current);
-      if (proctorSidRef.current) {
-        try {
-          await fetch(`${API_BASE}/api/proctoring/stop/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: proctorSidRef.current }),
-          });
-        } catch (_) {}
-        proctorSidRef.current = null;
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
-      }
-      setCameraActive(false);
-
-      setLoading(true);
-      setTimeout(() => {
-        const closing = "Thank you for your time! That wraps up our session. You handled that well — your report will be on your dashboard shortly. Good luck!";
-        setMessages((prev) => [...prev, { role: 'ai', text: closing, qType: 'behavioral' }]);
-        speak(closing);
-        setLoading(false);
-        setEnded(true);
-        setPhase('done');
-      }, 1000);
+      await endInterviewSequence(false);
       return;
     }
 
@@ -386,6 +564,9 @@ export default function AIInterview() {
           speak(reaction);
         }
 
+        // Calculate delay based on reaction length (roughly 70ms per character) to prevent speech cutoff
+        const reactionDelay = reaction ? Math.min(Math.max(1500, reaction.length * 70 + 500), 8000) : 0;
+
         setTimeout(() => {
           setPhase('idle');
           currentQRef.current = next_turn;
@@ -393,8 +574,8 @@ export default function AIInterview() {
           const qType = detectQuestionType(next_turn);
           setCurrentQType(qType);
           setMessages((prev) => [...prev, { role: 'ai', text: next_turn, qType }]);
-          setTimeout(() => speak(next_turn), reaction ? 800 : 0);
-        }, reaction ? 1200 : 0);
+          setTimeout(() => speak(next_turn), reaction ? 600 : 0);
+        }, reactionDelay);
 
       }, thinkDelay);
 
@@ -416,6 +597,25 @@ export default function AIInterview() {
   const isFAANG        = isTechGiant(company);
   const qTypeMeta      = Q_TYPE_META[currentQType] || Q_TYPE_META['technical'];
   const QTypeIcon      = qTypeMeta.icon;
+
+  if (phase === 'cam-check') {
+    return (
+      <CameraCheckScreen
+        topic={sessionLabel}
+        difficulty="N/A"
+        count={TOTAL_QUESTIONS}
+        checkVideoRef={checkVideoRef}
+        camState={camState}
+        camError={camError}
+        onStart={() => {
+          if (camState === 'granted') {
+            setCameraActive(true);
+            setPhase('starting');
+          }
+        }}
+      />
+    );
+  }
 
   /* ──────────────────────────────────────────────────────────────────────── */
   return (
@@ -574,10 +774,75 @@ export default function AIInterview() {
               <p className="iv-status-hint">Interviewer is typing…</p>
             )}
           </div>
+        ) : phase === 'reviewing' ? (
+          <div className="iv-ended-bar" style={{ justifyContent: 'center' }}>
+            <Loader2 size={20} className="cam-spin" style={{ marginRight: '0.5rem' }} />
+            <span>Analyzing your interview and generating feedback...</span>
+          </div>
         ) : (
-          <div className="iv-ended-bar">
-            <span>Interview complete. Your report is ready on the dashboard.</span>
-            <Link to="/dashboard" className="iv-dash-btn">Go to Dashboard →</Link>
+          <div className="iv-report-container" id="iv-report-content">
+            <div className="iv-report-header">
+              <h2 className="iv-report-title">Interview Feedback Report</h2>
+              <div className="iv-report-actions">
+                <button className="download-btn" onClick={handleDownloadPDF} disabled={!window.html2pdf}>
+                  <Download size={18} /> Download PDF
+                </button>
+              </div>
+            </div>
+
+            {reviewData ? (
+              <>
+                <div className="iv-report-section">
+                  <h3>Proctoring & Integrity</h3>
+                  <ul className="iv-report-list">
+                    <li><strong>Tab Switches Detected:</strong> {windowSwitchCount} {windowSwitchCount === 1 ? 'time' : 'times'}</li>
+                    {proctorResult && (
+                      <li><strong>Face Visibility:</strong> {(100 - proctorResult.face_not_in_frame_pct).toFixed(1)}% of the interview</li>
+                    )}
+                  </ul>
+                </div>
+                <div className="iv-report-section">
+                  <h3>Overview</h3>
+                  <p>{reviewData.overview}</p>
+                </div>
+                <div className="iv-report-section">
+                  <h3>Strengths</h3>
+                  <ul className="iv-report-list">
+                    {reviewData.strengths?.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+                <div className="iv-report-section">
+                  <h3>Areas for Improvement</h3>
+                  <ul className="iv-report-list">
+                    {reviewData.gaps?.map((g, i) => <li key={i}>{g}</li>)}
+                  </ul>
+                </div>
+                <div className="iv-report-section">
+                  <h3>Recommendations</h3>
+                  <ul className="iv-report-list">
+                    {reviewData.recommendations?.map((r, i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <div className="iv-report-section">
+                <p>Failed to load comprehensive review. Here is your transcript below.</p>
+              </div>
+            )}
+
+            <div className="iv-report-section" style={{ marginTop: '3rem' }}>
+              <h3>Interview Transcript</h3>
+              {historyRef.current.map((item, i) => (
+                <div key={i} className="iv-transcript-item">
+                  <div className="iv-t-q">Q{i + 1}: {item.q}</div>
+                  <div className="iv-t-a">You: {item.a}</div>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+              <Link to="/dashboard" className="iv-dash-btn">Return to Dashboard</Link>
+            </div>
           </div>
         )}
 
@@ -590,6 +855,46 @@ export default function AIInterview() {
           <div className="iv-proctor-cam-bar">
             <ShieldCheck size={10} strokeWidth={2.5} />
             <span>Proctored · Live</span>
+          </div>
+        </div>
+      )}
+
+      {/* Termination Overlay */}
+      {isTerminated && (
+        <div className="window-warning-overlay">
+          <div className="window-warning-card" style={{ borderColor: '#991b1b' }}>
+            <AlertTriangle size={64} style={{ color: '#991b1b', margin: '0 auto 1.5rem', display: 'block' }} />
+            <h2 className="window-warning-title">Interview Terminated</h2>
+            <p className="window-warning-text">
+              You have exceeded the maximum allowed number of window switches (3). 
+              Your interview has been forcefully terminated to maintain integrity.
+            </p>
+            <button 
+              className="window-warning-btn" style={{ background: '#991b1b' }}
+              onClick={() => endInterviewSequence(true)}
+            >
+              Submit Partial Report
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Window Switch Warning Overlay */}
+      {!isTerminated && showSwitchWarning && (
+        <div className="window-warning-overlay">
+          <div className="window-warning-card">
+            <AlertTriangle size={64} className="window-warning-icon" />
+            <h2 className="window-warning-title">Window Switch Detected</h2>
+            <p className="window-warning-text">
+              Navigating away from the interview tab is not allowed and has been recorded. 
+              Continuing to switch windows may negatively impact your integrity score.
+            </p>
+            <button 
+              className="window-warning-btn"
+              onClick={() => setShowSwitchWarning(false)}
+            >
+              I Understand
+            </button>
           </div>
         </div>
       )}

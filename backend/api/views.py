@@ -267,6 +267,94 @@ def generate_mock_test_review(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def generate_interview_review(request):
+    try:
+        body = json.loads(request.body)
+        primary_key = os.getenv("GROQ_API_KEY", "").strip()
+        fallback_key1 = os.getenv("GROQ_API_KEY2", "").strip()
+        fallback_key2 = os.getenv("GROQ_API_KEY3", "").strip()
+        candidate_keys = [k for k in (primary_key, fallback_key1, fallback_key2) if k and k != "gsk_your_actual_key_here"]
+        
+        if not candidate_keys:
+            return JsonResponse({"error": "No valid Groq API key configured."}, status=500)
+
+        history = body.get("history") if isinstance(body.get("history"), list) else []
+        role = str(body.get("role", "Candidate"))[:80]
+        company = str(body.get("company", ""))[:80]
+        
+        compact_history = []
+        for ex in history[:15]:
+            if not isinstance(ex, dict):
+                continue
+            compact_history.append({
+                "question": str(ex.get("q", ""))[:300],
+                "answer": str(ex.get("a", ""))[:600],
+            })
+
+        signal = {
+            "role": role,
+            "company": company,
+            "proctor": body.get("proctor") if isinstance(body.get("proctor"), dict) else None,
+            "history": compact_history,
+        }
+
+        prompt = (
+            "You are an expert interview coach. Analyze this oral interview transcript and return ONLY a JSON object with keys: "
+            "overview (string), strengths (array of strings), gaps (array of strings), recommendations (array of strings). "
+            "Each list must have 3-5 concise, actionable items.\n\n"
+            f"INTERVIEW_DATA:\n{json.dumps(signal, ensure_ascii=True)}"
+        )
+
+        completion = None
+        last_err = None
+        for api_key in candidate_keys:
+            try:
+                client = Groq(api_key=api_key)
+                completion = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.4,
+                    max_completion_tokens=1500,
+                )
+                break
+            except Exception as err:
+                last_err = err
+
+        if completion is None:
+            raise RuntimeError(f"Groq request failed for all configured keys: {last_err}")
+
+        raw = (completion.choices[0].message.content or "").strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return JsonResponse({"error": "AI response did not contain a JSON object"}, status=500)
+
+        parsed = json.loads(match.group())
+
+        def _list(key):
+            value = parsed.get(key)
+            if not isinstance(value, list):
+                return []
+            return [str(item).strip() for item in value if str(item).strip()][:6]
+
+        result = {
+            "overview": str(parsed.get("overview", "")).strip(),
+            "strengths": _list("strengths"),
+            "gaps": _list("gaps"),
+            "recommendations": _list("recommendations"),
+        }
+
+        return JsonResponse(result)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def start_proctoring(request):
     """Start a background proctoring session. Returns {session_id}."""
     try:
