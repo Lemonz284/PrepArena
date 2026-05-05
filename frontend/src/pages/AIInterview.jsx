@@ -25,16 +25,30 @@ function isSpeechSupported() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
-function speak(text) {
+function speak(text, gender = 'female') {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.rate  = 0.9;
   utt.pitch = 1.0;
+  
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('google'))
-    || voices.find(v => v.lang === 'en-US')
-    || voices[0];
+  const g = (gender || 'female').toLowerCase();
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+
+  let preferred;
+  if (g === 'male') {
+    // Look for common male voice names or keywords
+    preferred = enVoices.find(v => /\b(male|guy|daniel|alex|fred|david|james|google uk english male)\b/i.test(v.name))
+      || enVoices.find(v => !/\b(female|samantha|victoria|zira|susan|moira|tessa|karen|veena|praveena)\b/i.test(v.name))
+      || enVoices[0];
+  } else {
+    // Look for common female voice names or keywords
+    preferred = enVoices.find(v => /\b(female|samantha|victoria|zira|susan|moira|tessa|karen|google us english)\b/i.test(v.name))
+      || enVoices.find(v => !/\b(male|guy|daniel|alex|fred|david|james)\b/i.test(v.name))
+      || enVoices[0];
+  }
+
   if (preferred) utt.voice = preferred;
   window.speechSynthesis.speak(utt);
 }
@@ -168,7 +182,7 @@ function CameraCheckScreen({ topic, difficulty, count, checkVideoRef, camState, 
 export default function AIInterview() {
   const location  = useLocation();
   const navigate  = useNavigate();  // eslint-disable-line no-unused-vars
-  const { resumeName = '', jdName = '', company = '', role = '' } = location.state || {};
+  const { resumeName = '', jdName = '', company = '', role = '', voiceGender = 'female' } = location.state || {};
 
   const { addSession, resumeText = '', jdText = '' } = usePrep();
   const savedRef       = useRef(false);
@@ -261,6 +275,14 @@ export default function AIInterview() {
       document.body.appendChild(script);
     }
 
+    // Force voices to load
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+      }
+    }
+
     return () => { mounted = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -335,7 +357,19 @@ export default function AIInterview() {
     }
 
     startSession();
-    return () => { cancelled = true; clearTimeout(proctorLoopRef.current); };
+    return () => { 
+      cancelled = true; 
+      clearTimeout(proctorLoopRef.current);
+      // Ensure backend session is stopped on unmount if it's still active
+      if (proctorSidRef.current) {
+        fetch(`${API_BASE}/api/proctoring/stop/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: proctorSidRef.current }),
+          keepalive: true
+        }).catch(() => {});
+      }
+    };
   }, [cameraActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── First question on mount ─────────────────────────────────────────── */
@@ -351,7 +385,7 @@ export default function AIInterview() {
       setMessages([{ role: 'ai', text: openingText, qType: 'behavioral' }]);
       setLoading(false);
       setPhase('idle');
-      setTimeout(() => speak(openingText), 300);
+      setTimeout(() => speak(openingText, voiceGender), 300);
     }, 1200);
   }, [phase, company, role, hasDocContext, jdText, resumeText]);
 
@@ -376,6 +410,34 @@ export default function AIInterview() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [ended, phase]);
+
+  /* ── Navigation & Termination Protection ─────────────────────────────── */
+  useEffect(() => {
+    if (ended || phase === 'cam-check' || phase === 'reviewing' || phase === 'done') return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = 'Interview in progress. Leaving will terminate the session.';
+    };
+
+    const handlePopState = (e) => {
+      // If user presses back, we treat it as a forced termination
+      if (!ended && phase !== 'cam-check') {
+        endInterviewSequence(true);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+    
+    // Push an extra entry into history to "capture" the first back button press
+    window.history.pushState(null, null, window.location.pathname);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [ended, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Auto-scroll ─────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -471,7 +533,7 @@ export default function AIInterview() {
       ? "This interview has been forcefully terminated due to a proctoring violation. Please wait while your partial report is compiled."
       : "Thank you for your time! That wraps up our session. Please wait while I generate your comprehensive review.";
     setMessages((prev) => [...prev, { role: 'ai', text: closing, qType: 'behavioral' }]);
-    speak(closing);
+    speak(closing, voiceGender);
     
     setPhase('reviewing');
 
@@ -561,7 +623,7 @@ export default function AIInterview() {
 
         if (reaction) {
           setMessages((prev) => [...prev, { role: 'ai', text: reaction, isReaction: true }]);
-          speak(reaction);
+          speak(reaction, voiceGender);
         }
 
         // Calculate delay based on reaction length (roughly 70ms per character) to prevent speech cutoff
@@ -574,7 +636,7 @@ export default function AIInterview() {
           const qType = detectQuestionType(next_turn);
           setCurrentQType(qType);
           setMessages((prev) => [...prev, { role: 'ai', text: next_turn, qType }]);
-          setTimeout(() => speak(next_turn), reaction ? 600 : 0);
+          setTimeout(() => speak(next_turn, voiceGender), reaction ? 600 : 0);
         }, reactionDelay);
 
       }, thinkDelay);

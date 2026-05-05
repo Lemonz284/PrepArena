@@ -1,8 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
 import './Navbar.css';
+import { usePrep } from '../context/PrepContext';
 
 export default function Navbar({ onOpenLogin, onOpenSignup }) {
   const location = useLocation();
+  const { clearContext } = usePrep();
   const username = localStorage.getItem('username');
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const aboutActive = location.pathname === '/' && location.hash === '#about';
@@ -90,6 +92,7 @@ export default function Navbar({ onOpenLogin, onOpenSignup }) {
                 onClick={() => {
                   localStorage.removeItem("token")
                   localStorage.removeItem("username")
+                  clearContext();
                   window.location.reload()
                 }}
                 className="btn-login"

@@ -233,3 +233,46 @@
   color: var(--text-muted);
   cursor: not-allowed;
 }
+
+/* Voice Selector */
+.voice-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+.voice-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-2);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.voice-opt:hover {
+  background: var(--surface);
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.voice-opt.selected {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.voice-opt svg {
+  opacity: 0.7;
+}
+
+.voice-opt.selected svg {
+  opacity: 1;
+}

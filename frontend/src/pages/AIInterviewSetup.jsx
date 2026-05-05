@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mic, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mic, CheckCircle2, AlertCircle, User } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { usePrep } from '../context/PrepContext';
 import './AIInterviewSetup.css';
@@ -10,6 +10,7 @@ export default function AIInterviewSetup() {
   const { resumeText, jdText, resumeName, jdName } = usePrep();
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
+  const [voiceGender, setVoiceGender] = useState('female');
 
   const hasResume = !!resumeText;
   const hasJd = !!jdText;
@@ -24,6 +25,7 @@ export default function AIInterviewSetup() {
         jdName: jdName || '',
         company: hasJd ? '' : company.trim(),
         role: hasJd ? '' : role.trim(),
+        voiceGender: voiceGender,
       },
     });
   }
@@ -100,6 +102,30 @@ export default function AIInterviewSetup() {
                   disabled={hasJd}
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="isetup-block">
+            <h2 className="isetup-block-title">
+              <span className="step-num">3</span> Interviewer Voice
+            </h2>
+            <div className="voice-selector">
+              <button 
+                type="button"
+                className={`voice-opt ${voiceGender === 'female' ? 'selected' : ''}`}
+                onClick={() => setVoiceGender('female')}
+              >
+                <User size={18} />
+                <span>Female</span>
+              </button>
+              <button 
+                type="button"
+                className={`voice-opt ${voiceGender === 'male' ? 'selected' : ''}`}
+                onClick={() => setVoiceGender('male')}
+              >
+                <User size={18} />
+                <span>Male</span>
+              </button>
             </div>
           </div>
 
