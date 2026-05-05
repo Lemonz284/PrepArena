@@ -115,6 +115,10 @@
   border-style: solid;
 }
 
+.drop-zone-spaced {
+  margin-top: 0.85rem;
+}
+
 .drop-icon { font-size: 2rem; }
 .drop-label { font-size: 0.88rem; font-weight: 600; color: var(--text-2); }
 .drop-label u { color: var(--yellow); }
@@ -173,7 +177,17 @@
 }
 
 .field-group input:focus { border-color: var(--green); background: var(--surface); }
+.field-group input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .field-group input::placeholder { color: var(--text-muted); }
+
+.isetup-note {
+  margin: -0.45rem 0 1rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
 
 /* Summary */
 .isetup-summary {

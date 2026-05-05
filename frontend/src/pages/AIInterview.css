@@ -11,53 +11,80 @@
   padding: 0 1.5rem 1.5rem;
 }
 
-/* Header */
+/* ── Header ──────────────────────────────────────────────────────────────── */
 .iv-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 0;
   border-bottom: 1px solid var(--border);
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.iv-header .back-link { color: var(--text-muted); }
+.iv-header .back-link { color: var(--text-muted); font-size: 0.88rem; }
 .iv-header .back-link:hover { color: var(--text); }
 
 .iv-header-left {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.iv-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
   flex-wrap: wrap;
 }
 
 .iv-session-info {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
 .iv-badge {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   background: var(--green-dim);
   color: var(--green);
-  padding: 0.3rem 0.75rem;
+  padding: 0.28rem 0.7rem;
   border-radius: 8px;
+  white-space: nowrap;
+}
+
+/* FAANG company badge */
+.iv-faang-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  padding: 0.28rem 0.7rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 
 .iv-company, .iv-resume {
   font-size: 0.82rem;
   color: var(--text-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 
 .iv-progress-wrap {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .iv-progress-label {
@@ -68,7 +95,7 @@
 }
 
 .iv-progress-bar {
-  width: 140px;
+  width: 120px;
   height: 5px;
   background: var(--border);
   border-radius: 99px;
@@ -82,21 +109,52 @@
   transition: width 0.4s ease;
 }
 
-/* Chat */
+/* ── Question type bar ───────────────────────────────────────────────────── */
+.iv-qtype-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  flex-wrap: wrap;
+}
+
+.iv-qtype-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--qtype-color, #a78bfa);
+  background: color-mix(in srgb, var(--qtype-color, #a78bfa) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qtype-color, #a78bfa) 30%, transparent);
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.iv-qtype-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Chat ────────────────────────────────────────────────────────────────── */
 .iv-chat {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem 0;
+  padding: 1.25rem 0;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
   min-height: 0;
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh - 320px);
 }
 
 .iv-msg {
   display: flex;
-  gap: 0.9rem;
+  gap: 0.75rem;
   align-items: flex-start;
 }
 
@@ -105,25 +163,47 @@
 }
 
 .iv-avatar {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
   flex-shrink: 0;
 }
 
 .avatar-ai   { background: var(--surface-2); color: var(--blue); border: 1px solid var(--border); }
 .avatar-user { background: var(--green-dim); color: var(--green); }
 
+/* Message body wrapper (holds qtype label + bubble) */
+.iv-msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 72%;
+  min-width: 0;
+}
+
+.iv-msg-user .iv-msg-body {
+  align-items: flex-end;
+}
+
+/* Per-message question type label */
+.iv-msg-qtype {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--qtype-color, #a78bfa);
+  letter-spacing: 0.03em;
+  padding-left: 0.1rem;
+  opacity: 0.85;
+}
+
 .iv-bubble {
-  max-width: 70%;
-  padding: 0.9rem 1.2rem;
+  padding: 0.85rem 1.1rem;
   border-radius: 16px;
-  font-size: 0.93rem;
+  font-size: 0.92rem;
   line-height: 1.65;
+  word-break: break-word;
 }
 
 .iv-msg-ai .iv-bubble {
@@ -144,7 +224,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0.9rem 1.2rem;
+  padding: 0.85rem 1.1rem;
   min-width: 64px;
 }
 
@@ -165,13 +245,19 @@
   50% { transform: translateY(-5px); opacity: 1; }
 }
 
-/* Input */
-.iv-input-row {
+/* ── Input area ──────────────────────────────────────────────────────────── */
+.iv-input-area {
   display: flex;
-  gap: 0.75rem;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.iv-input-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-end;
 }
 
 .iv-textarea {
@@ -179,7 +265,7 @@
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 12px;
-  padding: 0.8rem 1rem;
+  padding: 0.75rem 1rem;
   font-size: 0.92rem;
   font-family: inherit;
   color: var(--text);
@@ -187,17 +273,18 @@
   outline: none;
   line-height: 1.6;
   transition: border-color 0.2s;
+  min-width: 0;
 }
 
 .iv-textarea::placeholder { color: var(--text-muted); }
 .iv-textarea:focus { border-color: var(--green); }
 
 .iv-send-btn {
-  padding: 0.75rem 1.4rem;
+  padding: 0.7rem 1.25rem;
   background: var(--green);
   border: none;
   border-radius: 12px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #080d18;
   cursor: pointer;
@@ -205,12 +292,13 @@
   align-self: flex-end;
   transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
   box-shadow: 0 0 12px var(--green-glow);
+  flex-shrink: 0;
 }
 
 .iv-send-btn:hover:not(:disabled) { background: var(--green-dark); transform: translateY(-1px); }
 .iv-send-btn:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed; box-shadow: none; }
 
-/* Ended bar */
+/* ── Ended bar ───────────────────────────────────────────────────────────── */
 .iv-ended-bar {
   display: flex;
   align-items: center;
@@ -235,24 +323,16 @@
   text-decoration: none;
   transition: background 0.2s;
   box-shadow: 0 0 12px var(--green-glow);
+  white-space: nowrap;
 }
 
 .iv-dash-btn:hover { background: var(--green-dark); }
 
-/* ── Input area wrapper ───────────────────────────────────────────────────── */
-.iv-input-area {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-}
-
 /* ── Mic button ──────────────────────────────────────────────────────────── */
 .iv-mic-btn {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   border: 2px solid var(--border);
   background: var(--surface);
@@ -271,17 +351,12 @@
   background: var(--green-dim);
 }
 
-.iv-mic-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+.iv-mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Pulsing ring when recording */
 .iv-mic-btn.recording {
   border-color: #ef4444;
   color: #ef4444;
   background: rgba(239, 68, 68, 0.12);
-  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
   animation: mic-pulse 1.4s ease-out infinite;
 }
 
@@ -291,7 +366,7 @@
   100% { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0); }
 }
 
-/* ── Live transcript preview ─────────────────────────────────────────────── */
+/* ── Live transcript ─────────────────────────────────────────────────────── */
 .iv-live-transcript {
   display: flex;
   align-items: center;
@@ -299,7 +374,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0.55rem 1rem;
+  padding: 0.5rem 1rem;
   font-size: 0.85rem;
   color: var(--text-muted);
   font-style: italic;
@@ -320,18 +395,19 @@
   50%       { opacity: 0.2; }
 }
 
-/* ── TTS always-on badge (header) ───────────────────────────────────────── */
+/* ── TTS badge ───────────────────────────────────────────────────────────── */
 .iv-tts-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.3rem 0.8rem;
+  padding: 0.28rem 0.7rem;
   border-radius: 8px;
   border: 1.5px solid var(--green);
   background: var(--green-dim);
   color: var(--green);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 /* ── Thinking phrase bubble ──────────────────────────────────────────────── */
@@ -343,7 +419,7 @@
   font-size: 0.88rem !important;
 }
 
-/* ── Reaction / feedback bubble (shown before the next question) ─────────── */
+/* ── Reaction bubble ─────────────────────────────────────────────────────── */
 .iv-bubble--reaction {
   font-style: italic;
   font-size: 0.88rem !important;
@@ -370,18 +446,12 @@
   50%       { opacity: 1; }
 }
 
-/* Override iv-input-row to not have top border (now on iv-input-area) */
-.iv-input-area .iv-input-row {
-  border-top: none;
-  padding-top: 0;
-}
-
-/* ── Floating proctor camera preview ─────────────────────────────────────── */
+/* ── Floating proctor camera ─────────────────────────────────────────────── */
 .iv-proctor-cam-wrap {
   position: fixed;
   bottom: 1.5rem;
   right: 1.5rem;
-  width: 160px;
+  width: 150px;
   border-radius: 14px;
   overflow: hidden;
   border: 2px solid var(--border);
@@ -409,3 +479,81 @@
   letter-spacing: 0.02em;
 }
 
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .iv-container {
+    padding: 0 1rem 1rem;
+  }
+
+  .iv-header {
+    padding: 0.75rem 0;
+    gap: 0.5rem;
+  }
+
+  .iv-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .iv-progress-bar {
+    width: 80px;
+  }
+
+  .iv-chat {
+    max-height: calc(100vh - 360px);
+    gap: 0.75rem;
+  }
+
+  .iv-msg-body {
+    max-width: 85%;
+  }
+
+  .iv-bubble {
+    font-size: 0.88rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .iv-textarea {
+    font-size: 0.88rem;
+    padding: 0.65rem 0.85rem;
+  }
+
+  .iv-send-btn {
+    padding: 0.65rem 1rem;
+    font-size: 0.84rem;
+  }
+
+  .iv-mic-btn {
+    width: 42px;
+    height: 42px;
+  }
+
+  .iv-proctor-cam-wrap {
+    width: 110px;
+    bottom: 1rem;
+    right: 1rem;
+  }
+
+  .iv-qtype-hint {
+    display: none;
+  }
+
+  .iv-company {
+    max-width: 120px;
+  }
+
+  .iv-ended-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .iv-resume { display: none; }
+  .iv-tts-badge { display: none; }
+
+  .iv-chat {
+    max-height: calc(100vh - 380px);
+  }
+}

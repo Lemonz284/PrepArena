@@ -358,16 +358,116 @@ def register_user(request):
 # ---------------------------------------------------------------------------
 # AI Mock Interview — next question endpoint
 # ---------------------------------------------------------------------------
+
+# Neutral thinking pauses — no fake enthusiasm, just natural filler
 THINKING_FILLER = [
-    "Hmm, interesting.",
-    "Okay, got it.",
-    "Let me think about that.",
-    "That's a fair point.",
+    "Mm-hm.",
+    "Okay.",
+    "I see.",
+    "Right.",
     "Alright.",
-    "Good to know.",
+    "Got it.",
 ]
 
 import random as _random
+
+
+# ── Company-specific interview intelligence ──────────────────────────────────
+COMPANY_PROFILES = {
+    "google": {
+        "style": "Google",
+        "focus": (
+            "Google interviews emphasise: (1) Behavioral — Googleyness & Leadership (ambiguity, ownership, collaboration, impact); "
+            "(2) Technical Concepts — explain how systems work (distributed systems, scalability, caching, load balancing), "
+            "no coding, just verbal explanations; (3) Problem-Solving — hypothetical scenarios, trade-offs, design thinking; "
+            "(4) Past Experience — deep dive into their resume projects, challenges faced, decisions made. "
+            "Ask questions like: 'Tell me about a time you had to make a decision with incomplete information', "
+            "'Explain how Google Search handles billions of queries per day', 'Walk me through your most complex project'. "
+            "Reference Google products (Search, Maps, YouTube, Gmail) when relevant. Use STAR format for behavioral questions."
+        ),
+    },
+    "meta": {
+        "style": "Meta",
+        "focus": (
+            "Meta interviews focus on: (1) Behavioral — impact, ownership, cross-functional collaboration, "
+            "moving fast, building for scale; (2) Technical Concepts — explain architectures (news feed ranking, "
+            "real-time messaging, social graph, content delivery), no coding; (3) Product Thinking — user experience, "
+            "growth, engagement; (4) Past Experience — projects, team dynamics, conflict resolution. "
+            "Ask questions like: 'Describe a time you had to influence without authority', "
+            "'How would you design a notification system for 3 billion users?', 'Tell me about a project that failed'. "
+            "Reference Meta products (Facebook, Instagram, WhatsApp, Messenger, Threads)."
+        ),
+    },
+    "microsoft": {
+        "style": "Microsoft",
+        "focus": (
+            "Microsoft interviews cover: (1) Behavioral — growth mindset, collaboration, customer obsession, "
+            "learning from failure; (2) Technical Concepts — cloud architecture (Azure), microservices, APIs, "
+            "security, scalability, no coding; (3) Situational — how you'd handle ambiguous problems, prioritize features; "
+            "(4) Past Experience — leadership, teamwork, technical decisions. "
+            "Ask questions like: 'Tell me about a time you learned from a mistake', "
+            "'Explain how you'd architect a global file storage system', 'Describe a situation where you had to prioritize competing demands'. "
+            "Reference Microsoft products (Azure, Office 365, Teams, Xbox, GitHub). Use STAR format."
+        ),
+    },
+    "amazon": {
+        "style": "Amazon",
+        "focus": (
+            "Amazon interviews are structured around the 16 Leadership Principles: customer obsession, ownership, "
+            "invent and simplify, bias for action, deliver results, dive deep, earn trust, think big, frugality, "
+            "learn and be curious, hire and develop the best, insist on highest standards, have backbone, disagree and commit. "
+            "Every question must tie to a Leadership Principle. Ask behavioral questions using STAR format. "
+            "Also ask: (1) Technical Concepts — AWS services (S3, DynamoDB, Lambda, EC2), distributed systems, "
+            "e-commerce scale, no coding; (2) Situational — trade-offs, prioritization, handling failure. "
+            "Examples: 'Tell me about a time you took ownership of a problem that wasn't yours', "
+            "'Explain how Amazon's recommendation engine works at scale', 'Describe a time you had to make a decision with limited data'."
+        ),
+    },
+    "apple": {
+        "style": "Apple",
+        "focus": (
+            "Apple interviews emphasise: (1) Behavioral — passion for craft, attention to detail, collaboration, "
+            "innovation, user-centric thinking; (2) Technical Concepts — iOS/macOS architecture, hardware-software integration, "
+            "performance optimization, privacy, security, no coding; (3) Product Thinking — user experience, design philosophy; "
+            "(4) Past Experience — projects, challenges, technical decisions. "
+            "Ask questions like: 'Tell me about a time you obsessed over a detail that others overlooked', "
+            "'Explain how Face ID works from a system perspective', 'Describe a project where you balanced performance and user experience'. "
+            "Reference Apple platforms (iOS, macOS, watchOS, tvOS)."
+        ),
+    },
+    "netflix": {
+        "style": "Netflix",
+        "focus": (
+            "Netflix interviews focus on: (1) Culture Fit — freedom and responsibility, context not control, "
+            "high performance, candor, judgment; (2) Technical Concepts — streaming at scale, CDN, recommendation systems, "
+            "microservices, chaos engineering, A/B testing, no coding; (3) Behavioral — autonomy, decision-making, impact; "
+            "(4) Past Experience — ownership, handling ambiguity. "
+            "Ask questions like: 'Tell me about a time you made a decision without approval', "
+            "'Explain how Netflix delivers video to millions of users with minimal buffering', "
+            "'Describe a situation where you had to operate with incomplete information'."
+        ),
+    },
+    "uber": {
+        "style": "Uber",
+        "focus": (
+            "Uber interviews cover: (1) Behavioral — impact, execution, collaboration, bias for action; "
+            "(2) Technical Concepts — marketplace systems, geolocation, real-time data pipelines, surge pricing, "
+            "distributed systems, no coding; (3) Problem-Solving — trade-offs, scalability, reliability; "
+            "(4) Past Experience — projects, challenges, team dynamics. "
+            "Ask questions like: 'Tell me about a time you had to move fast and break things', "
+            "'Explain how Uber matches riders and drivers in real-time', 'Describe a project where you had to balance speed and quality'."
+        ),
+    },
+}
+
+def _get_company_profile(company: str) -> dict | None:
+    """Return the company profile if the company is a known tech giant."""
+    c = company.lower().strip()
+    for key, profile in COMPANY_PROFILES.items():
+        if key in c:
+            return profile
+    return None
+
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -381,12 +481,15 @@ def interview_next(request):
         total_questions: int,
         history: [{q, a}, ...]  // last <=4 pairs for context
     }
-    Returns: { next_question, thinking_phrase, is_last }
+    Returns: { reaction, next_turn, thinking_phrase, is_last, question_type }
     """
     try:
         body = json.loads(request.body)
         role             = str(body.get("role", "Software Engineer"))[:80]
         company          = str(body.get("company", "the company"))[:80]
+        resume_text      = str(body.get("resume_text", ""))[:3000]
+        jd_text          = str(body.get("jd_text", ""))[:3000]
+        jd_name          = str(body.get("jd_name", ""))[:160]
         last_answer      = str(body.get("last_answer", ""))[:1200]
         question_number  = int(body.get("question_number", 1))
         total_questions  = int(body.get("total_questions", 6))
@@ -411,6 +514,15 @@ def interview_next(request):
             if q_text:
                 context_lines.append(f"Q: {q_text}\nA: {a_text}")
         context_block = "\n\n".join(context_lines)
+
+        prep_context_parts = []
+        if jd_name:
+            prep_context_parts.append(f"Selected job description: {jd_name}")
+        if jd_text.strip():
+            prep_context_parts.append(f"JOB DESCRIPTION:\n{jd_text.strip()}")
+        if resume_text.strip():
+            prep_context_parts.append(f"RESUME:\n{resume_text.strip()}")
+        prep_context = "\n\n".join(prep_context_parts)
 
         is_last = (question_number >= total_questions)
 
@@ -448,45 +560,138 @@ def interview_next(request):
 
         if is_last:
             next_instruction = (
-                "This is the FINAL exchange of the interview. "
-                "After this, the interview ends. "
-                "For NEXT: ask one strong closing question about their biggest strength, "
-                "proudest project, or future goals."
+                "This is the FINAL question of the interview. "
+                "For NEXT: ask exactly one strong closing question — e.g. their biggest strength, "
+                "proudest project, or a long-term career goal. Keep it focused."
             )
         else:
             remaining = total_questions - question_number
             next_instruction = (
-                f"There are {remaining} more exchanges left. "
-                "For NEXT: you have two options — pick whichever feels more natural:\n"
-                "  Option A) Ask a new interview question (behavioral OR technical, mix them up). "
-                "  Option B) Follow up conversationally on what the candidate just said "
-                "  (e.g. 'So what happened after that?', 'How did the team react?', "
-                "  'Did you consider doing X instead?', 'What would you do differently now?'). "
-                "Choose Option B if the candidate's answer was interesting or incomplete. "
-                "Do NOT repeat anything already discussed."
+                f"{remaining} question(s) remaining. "
+                "For NEXT: ask exactly one new question. Choose from:\n"
+                "  - A new technical or behavioral interview question relevant to the role\n"
+                "  - A natural follow-up if the candidate's answer was incomplete or interesting\n"
+                "Do NOT repeat anything already covered. Do NOT ask compound questions."
+            )
+            if prep_context:
+                next_instruction += (
+                    "\nUse the provided resume/job-description context to tailor the question to the actual role, "
+                    "skills, tools, and responsibilities in the candidate's prep context."
+                )
+
+        # Detect weak/lazy answers so the model knows to skip encouragement
+        lazy_triggers = [
+            "i don't know", "i dont know", "idk", "no idea", "not sure",
+            "sorry", "i'm not sure", "im not sure", "i have no idea",
+            "i'm unsure", "skip", "pass", "n/a",
+        ]
+        answer_lower = last_answer.lower().strip()
+        is_weak_answer = (
+            len(answer_lower) < 20
+            or any(t in answer_lower for t in lazy_triggers)
+        )
+
+        # ── Company-specific interview style ──────────────────────────────────
+        company_profile = _get_company_profile(company)
+        company_context = ""
+        question_type_hint = ""
+        if company_profile:
+            company_context = (
+                f"\n\nCOMPANY INTERVIEW STYLE — {company_profile['style']}:\n"
+                f"{company_profile['focus']}\n"
+                f"You MUST ask questions in the authentic style of a {company_profile['style']} interviewer. "
+                f"This is an ORAL interview — NO coding questions, NO written DSA problems. "
+                f"Rotate between: (1) Behavioral questions (STAR format), (2) Technical concept questions "
+                f"(explain how systems work, no code), (3) Situational/hypothetical questions, "
+                f"(4) Past experience deep-dives, (5) Aptitude/critical thinking questions."
+            )
+            # Question type rotation for oral interview
+            # Q1=intro/behavioral, Q2=technical concept, Q3=past experience, Q4=situational, Q5=aptitude/critical thinking, Q6=closing
+            type_rotation = {
+                1: "behavioral (introduction, background, motivation)",
+                2: "technical concept (explain a system, architecture, or technology — no coding)",
+                3: "past experience (deep dive into a resume project, challenge, or decision)",
+                4: "situational or hypothetical (how would you handle X, trade-offs, prioritization)",
+                5: "aptitude or critical thinking (logic puzzle, problem-solving scenario, estimation)",
+                6: "closing behavioral (strengths, career goals, why this company)",
+            }
+            q_type = type_rotation.get(question_number + 1, "technical concept or behavioral")
+            question_type_hint = (
+                f"\nFor question {question_number + 1}, ask a {q_type} question "
+                f"in the style of {company_profile['style']}. Remember: this is an ORAL interview, "
+                f"so NO coding, NO 'write a function', NO DSA implementation questions."
+            )
+        else:
+            # Generic interview style when company is not recognized
+            company_context = (
+                "\n\nThis is an ORAL mock interview. Do NOT ask coding questions or DSA implementation problems. "
+                "Focus on: (1) Behavioral questions (STAR format), (2) Technical concepts (explain, not code), "
+                "(3) Past experience, (4) Situational questions, (5) Aptitude/critical thinking."
+            )
+            type_rotation = {
+                1: "behavioral (introduction, background)",
+                2: "technical concept (explain a technology or system)",
+                3: "past experience (project deep-dive)",
+                4: "situational (hypothetical scenario)",
+                5: "aptitude or critical thinking",
+                6: "closing behavioral",
+            }
+            q_type = type_rotation.get(question_number + 1, "behavioral or technical concept")
+            question_type_hint = (
+                f"\nFor question {question_number + 1}, ask a {q_type} question. "
+                f"NO coding, NO 'write a function' questions."
             )
 
         system_prompt = (
-            f"You are a sharp, friendly professional interviewer conducting a mock interview "
-            f"for the role of {role} at {company}. "
-            "You speak naturally, like a real human interviewer — not a chatbot. "
-            "Keep every response SHORT. No markdown. Plain text only."
+            f"You are an experienced, professional interviewer conducting a realistic oral mock interview "
+            f"for the {role} role{f' at {company}' if company else ''}. "
+            "You are calm, direct, conversational, and human — not a chatbot. "
+            "You provide constructive feedback like a real interviewer would. "
+            "When an answer is weak, you say things like: 'I'd expect more detail here', "
+            "'That's a start, but let me dig deeper', 'You should know this for this role', "
+            "'That's a bit vague — can you be more specific?'. "
+            "When an answer is good, you say: 'That's exactly what I was looking for', "
+            "'Good answer, I like how you approached that', 'That's a solid explanation', "
+            "'I appreciate the detail you provided'. "
+            "You speak naturally, the way a senior engineer or hiring manager would in a real interview. "
+            "When job description or resume context is provided, you must use it to keep the interview relevant to that opportunity."
+            f" Plain text only. No markdown. No bullet points.{company_context}"
         )
 
+        if is_weak_answer:
+            reaction_rule = (
+                "REACTION RULE: The candidate gave a weak, vague, or 'I don't know' answer. "
+                "Provide constructive feedback like a real interviewer would. Examples: "
+                "'I'd expect more detail for this role.', 'That's a bit vague — let me ask something else.', "
+                "'You should be familiar with this concept.', 'That's fine, let's move on.', "
+                "'I was hoping for more depth there.', 'Alright, we'll come back to that.'. "
+                "One or two short sentences. Be direct but professional."
+            )
+        else:
+            reaction_rule = (
+                "REACTION RULE: The candidate gave a reasonable answer. "
+                "Provide brief, constructive feedback like a real interviewer would. Examples: "
+                "'That's a good answer.', 'I like how you approached that.', 'That's exactly what I was looking for.', "
+                "'Good explanation.', 'That makes sense.', 'I appreciate the detail.', 'Solid answer.'. "
+                "One or two short sentences. Be encouraging but not over-enthusiastic."
+            )
+
         user_prompt = (
-            f"Recent interview exchanges:\n{context_block}\n\n"
-            f"The candidate just said (answering exchange {question_number} of {total_questions}):\n"
+            f"Prep context:\n{prep_context or 'No resume or JD context provided.'}\n\n"
+            f"Interview context (last {min(len(history), 4)} exchanges):\n{context_block}\n\n"
+            f"The candidate just answered question {question_number} of {total_questions}:\n"
             f"\"{last_answer}\"\n\n"
-            f"{next_instruction}\n\n"
-            "Respond in EXACTLY this format (two lines, nothing else):\n"
-            "REACTION: <one natural sentence acknowledging/reacting to their answer — "
-            "e.g. 'That's a great example.' / 'Interesting approach.' / "
-            "'Nice, sounds like a challenging situation.' / 'Good thinking.'>"
-            "\n"
-            "NEXT: <the follow-up or next question — conversational OR formal, your choice>"
-            "\n\n"
-            "Rules: REACTION must be exactly 1 sentence. NEXT must be 1-2 sentences max. "
-            "No numbering. No extra text outside the two lines."
+            f"{reaction_rule}\n\n"
+            f"NEXT QUESTION RULE: {next_instruction}{question_type_hint}\n\n"
+            "OUTPUT FORMAT (exactly two lines, nothing else):\n"
+            "REACTION: <your one or two sentence feedback statement>\n"
+            "NEXT: <your one interview question, 1-2 sentences max>\n\n"
+            "Critical rules:\n"
+            "- REACTION must be a statement or brief feedback. Never a question.\n"
+            "- NEXT must be exactly one question. Never two.\n"
+            "- Prefer asking about skills, tools, responsibilities, and gaps visible in the JD/resume context when available.\n"
+            "- NO coding questions. NO 'write a function' or 'implement X' questions.\n"
+            "- No extra lines, no preamble, no sign-off."
         )
 
         completion = None
@@ -527,11 +732,38 @@ def interview_next(request):
             next_turn = raw_response
             reaction  = _random.choice(THINKING_FILLER)
 
+        # ── Sanitise REACTION: must be a short statement, never a question ──
+        # If the model put a question in the reaction, split it out:
+        #   "Good answer. Can you elaborate?" → reaction="Good answer.", question moves to next_turn prefix
+        if reaction and "?" in reaction:
+            parts = reaction.split("?")
+            # Keep only the part before the first question mark as the statement
+            statement_part = parts[0].strip().rstrip(".")
+            question_part  = "?".join(parts[1:]).strip()
+            if statement_part:
+                reaction = statement_part + "."
+            else:
+                reaction = _random.choice(THINKING_FILLER)
+            # If there was a trailing question, prepend it to next_turn
+            if question_part and not question_part.endswith("?"):
+                question_part += "?"
+            if question_part and question_part != "?":
+                next_turn = question_part + " " + next_turn if next_turn else question_part
+
+        # Cap reaction to a single sentence (take everything up to first period)
+        if reaction and ". " in reaction:
+            reaction = reaction.split(". ")[0].rstrip(".") + "."
+
+        # Final length guard — reaction should never be a paragraph
+        if len(reaction) > 120:
+            reaction = reaction[:117].rsplit(" ", 1)[0] + "."
+
         return JsonResponse({
             "reaction":        reaction,
             "next_turn":       next_turn,
             "thinking_phrase": _random.choice(THINKING_FILLER),
             "is_last":         is_last,
+            "company_style":   company_profile["style"] if company_profile else None,
         })
 
     except json.JSONDecodeError:

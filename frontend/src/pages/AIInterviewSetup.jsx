@@ -1,44 +1,31 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mic, Upload, FileText } from 'lucide-react';
+import { Mic, CheckCircle2, AlertCircle } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { usePrep } from '../context/PrepContext';
 import './AIInterviewSetup.css';
 
 export default function AIInterviewSetup() {
   const navigate = useNavigate();
-  const [resumeFile, setResumeFile] = useState(null);
-  const [jdFile, setJdFile] = useState(null);
+  const { resumeText, jdText, resumeName, jdName } = usePrep();
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
-  const [resumeDrag, setResumeDrag] = useState(false);
-  const [jdDrag, setJdDrag] = useState(false);
-  const resumeRef = useRef();
-  const jdRef = useRef();
 
-  const canStart = resumeFile && (jdFile || (company && role));
+  const hasResume = !!resumeText;
+  const hasJd = !!jdText;
+  const contextReady = hasResume || hasJd;
+  const canStart = contextReady;
 
   function handleStart() {
     if (!canStart) return;
     navigate('/dashboard/interview', {
       state: {
-        resumeName: resumeFile?.name,
-        jdName: jdFile?.name || null,
-        company,
-        role,
+        resumeName: resumeName || '',
+        jdName: jdName || '',
+        company: hasJd ? '' : company.trim(),
+        role: hasJd ? '' : role.trim(),
       },
     });
-  }
-
-  function onDropResume(e) {
-    e.preventDefault(); setResumeDrag(false);
-    const f = e.dataTransfer.files[0];
-    if (f) setResumeFile(f);
-  }
-
-  function onDropJD(e) {
-    e.preventDefault(); setJdDrag(false);
-    const f = e.dataTransfer.files[0];
-    if (f) setJdFile(f);
   }
 
   return (
@@ -51,75 +38,47 @@ export default function AIInterviewSetup() {
           <div className="isetup-icon"><Mic size={28} strokeWidth={1.75} /></div>
           <div>
             <h1 className="isetup-title">AI Interview</h1>
-            <p className="isetup-sub">Upload your resume and job context. The AI will tailor every question to you.</p>
+            <p className="isetup-sub">Use your dashboard prep context. The AI will tailor questions from your uploaded resume and selected job description.</p>
           </div>
         </div>
 
         <div className="isetup-grid">
-
-          {/* Resume Upload */}
           <div className="isetup-block">
             <h2 className="isetup-block-title">
-              <span className="step-num">1</span> Upload Your Resume
-              <span className="isetup-required">Required</span>
+              <span className="step-num">1</span> Dashboard Context
             </h2>
-            <div
-              className={`drop-zone ${resumeDrag ? 'dragging' : ''} ${resumeFile ? 'has-file' : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setResumeDrag(true); }}
-              onDragLeave={() => setResumeDrag(false)}
-              onDrop={onDropResume}
-              onClick={() => resumeRef.current.click()}
-            >
-              {resumeFile ? (
-                <>
-                  <span className="drop-file-icon"><FileText size={22} strokeWidth={1.5} /></span>
-                  <span className="drop-file-name">{resumeFile.name}</span>
-                  <button className="drop-remove" onClick={(e) => { e.stopPropagation(); setResumeFile(null); }}>✕ Remove</button>
-                </>
-              ) : (
-                <>
-                  <span className="drop-icon"><Upload size={22} strokeWidth={1.5} /></span>
-                  <span className="drop-label">Drag & Drop</span>
-                  <span className="drop-hint">PDF or DOC · Max 5 MB</span>
-                </>
-              )}
+            <div className={`drop-zone ${contextReady ? 'has-file' : ''}`}>
+              <div className="drop-file-icon">
+                {hasResume ? <CheckCircle2 size={20} strokeWidth={2} /> : <AlertCircle size={20} strokeWidth={2} />}
+              </div>
+              <span className="drop-file-name">
+                Resume: {resumeName || 'Not uploaded on Dashboard'}
+              </span>
             </div>
-            <input ref={resumeRef} type="file" accept=".pdf,.doc,.docx" hidden
-              onChange={(e) => { if (e.target.files[0]) setResumeFile(e.target.files[0]); }} />
+            <div className={`drop-zone drop-zone-spaced ${contextReady ? 'has-file' : ''}`}>
+              <div className="drop-file-icon">
+                {hasJd ? <CheckCircle2 size={20} strokeWidth={2} /> : <AlertCircle size={20} strokeWidth={2} />}
+              </div>
+              <span className="drop-file-name">
+                Job Description: {jdName || 'Not selected yet (add from Job Board or upload on Dashboard)'}
+              </span>
+            </div>
+            {!contextReady && (
+              <p className="drop-hint" style={{ marginTop: '0.8rem' }}>
+                Add resume or JD from the <Link to="/dashboard" style={{ textDecoration: 'underline' }}>Dashboard</Link> before starting.
+              </p>
+            )}
           </div>
 
-          {/* JD Upload */}
           <div className="isetup-block">
             <h2 className="isetup-block-title">
-              <span className="step-num">2</span> Job Description
-              <span className="isetup-optional">Optional if filling below</span>
+              <span className="step-num">2</span> Optional Role Details
             </h2>
-            <div
-              className={`drop-zone ${jdDrag ? 'dragging' : ''} ${jdFile ? 'has-file' : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setJdDrag(true); }}
-              onDragLeave={() => setJdDrag(false)}
-              onDrop={onDropJD}
-              onClick={() => jdRef.current.click()}
-            >
-              {jdFile ? (
-                <>
-                  <span className="drop-file-icon"><FileText size={22} strokeWidth={1.5} /></span>
-                  <span className="drop-file-name">{jdFile.name}</span>
-                  <button className="drop-remove" onClick={(e) => { e.stopPropagation(); setJdFile(null); }}>✕ Remove</button>
-                </>
-              ) : (
-                <>
-                  <span className="drop-icon"><Upload size={22} strokeWidth={1.5} /></span>
-                  <span className="drop-label">Drag & Drop</span>
-                  <span className="drop-hint">PDF, DOC or TXT · Max 5 MB</span>
-                </>
-              )}
-            </div>
-            <input ref={jdRef} type="file" accept=".pdf,.doc,.docx,.txt" hidden
-              onChange={(e) => { if (e.target.files[0]) setJdFile(e.target.files[0]); }} />
-
-            <div className="or-divider">— or type manually —</div>
-
+            {hasJd && (
+              <p className="isetup-note">
+                A job description is already loaded, so company and role are not required.
+              </p>
+            )}
             <div className="isetup-fields">
               <div className="field-group">
                 <label>Company</label>
@@ -128,6 +87,7 @@ export default function AIInterviewSetup() {
                   placeholder="e.g. Google, Amazon, Meta"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
+                  disabled={hasJd}
                 />
               </div>
               <div className="field-group">
@@ -137,6 +97,7 @@ export default function AIInterviewSetup() {
                   placeholder="e.g. Software Engineer L4"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
+                  disabled={hasJd}
                 />
               </div>
             </div>
@@ -146,7 +107,12 @@ export default function AIInterviewSetup() {
 
         {canStart && (
           <div className="isetup-summary">
-            <span><Mic size={13} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />Interview ready — <strong>{resumeFile.name}</strong> {company && `· ${company} ${role}`}</span>
+            <span>
+              <Mic size={13} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
+              Interview ready — using dashboard context
+              {!hasJd && company && ` · ${company}`}
+              {!hasJd && role && ` ${role}`}
+            </span>
           </div>
         )}
 
