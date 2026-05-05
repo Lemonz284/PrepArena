@@ -6,19 +6,92 @@ import MockReviewPanel from '../components/MockReviewPanel';
 import { usePrep } from '../context/PrepContext';
 import './MockTestResults.css';
 
+const PROCTOR_REPORT_STORAGE_KEY = 'mockTestProctorReport';
+
+// FIX #7: instead of re-deriving percentages from raw counts (which used a
+// slightly different formula than buildProctorResultFromMetrics in MockTest),
+// we read the fully-computed result that was baked into the report at save time.
+function extractProctorFromReport(report) {
+  if (!report) return null;
+
+  // If the report carries a fully-computed result object, use it directly.
+  // This is the shape written by buildProctorResultFromMetrics in MockTest.jsx.
+  if (report.result) return report.result;
+
+  // Older reports only have raw metric counts — reconstruct with the same
+  // formula as MockTest.jsx so the numbers always match.
+  const totalFrames     = Number(report.metrics?.total_frames     || 0);
+  const noFaceFrames    = Number(report.metrics?.no_face_frames   || 0);
+  const offCenterFrames = Number(report.metrics?.off_center_frames || 0);
+  const multiFaceFrames = Number(report.metrics?.multi_face_frames || 0);
+
+  const cameraAvailable = Boolean(report.camera_available);
+  if (!cameraAvailable || totalFrames === 0) {
+    return {
+      cheating: false, camera_available: false,
+      face_not_in_frame_pct: 0.0, not_looking_pct: 0.0, multi_face_pct: 0.0,
+      total_frames: totalFrames, flags: [], cheating_probability: null, provider: 'mediapipe',
+    };
+  }
+
+  const FACE_MISSING_THRESHOLD = report.thresholds?.face_missing_pct ?? 15.0;
+  const LOOK_AWAY_THRESHOLD    = report.thresholds?.look_away_pct    ?? 25.0;
+  const MULTI_FACE_THRESHOLD   = report.thresholds?.multi_face_pct   ??  5.0;
+
+  const faceNotPct      = Number(((noFaceFrames / totalFrames) * 100).toFixed(1));
+  const validFaceFrames = Math.max(0, totalFrames - noFaceFrames);
+  const awayPct         = Number(((validFaceFrames > 0 ? offCenterFrames / validFaceFrames : 0) * 100).toFixed(1));
+  const multiPct        = Number(((multiFaceFrames / totalFrames) * 100).toFixed(1));
+
+  const flags = [];
+  if (faceNotPct > FACE_MISSING_THRESHOLD) flags.push(`Face absent ${faceNotPct}% of the time`);
+  if (awayPct    > LOOK_AWAY_THRESHOLD)    flags.push(`Not looking at screen ${awayPct}% of the time`);
+  if (multiPct   > MULTI_FACE_THRESHOLD)   flags.push(`Multiple people detected in ${multiPct}% of frames`);
+
+  const cheatingProbability = Number(
+    Math.min(1, Math.max(0,
+      (faceNotPct / 100) * 0.5 +
+      (awayPct    / 100) * 0.35 +
+      (multiPct   / 100) * 0.15
+    )).toFixed(3)
+  );
+
+  return {
+    cheating: flags.length > 0,
+    camera_available: true,
+    face_not_in_frame_pct: faceNotPct,
+    not_looking_pct: awayPct,
+    multi_face_pct: multiPct,
+    total_frames: totalFrames,
+    flags,
+    cheating_probability: cheatingProbability,
+    provider: report.provider || 'mediapipe',
+  };
+}
+
 export default function MockTestResults() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { questions = [], answers = {}, score = 0, maxScore = questions.length || 0, questionScores = {}, topic = '', difficulty = '', timeTaken = 0, proctor = null, proctorReport = null } = location.state || {};
-  const PROCTOR_REPORT_STORAGE_KEY = 'mockTestProctorReport';
+  const {
+    questions      = [],
+    answers        = {},
+    score          = 0,
+    maxScore       = questions.length || 0,
+    questionScores = {},
+    topic          = '',
+    difficulty     = '',
+    timeTaken      = 0,
+    proctor        = null,
+    proctorReport  = null,
+  } = location.state || {};
 
-  const [storedReport, setStoredReport] = useState(proctorReport);
+  const [storedReport,  setStoredReport]  = useState(proctorReport);
   const [storedProctor, setStoredProctor] = useState(proctor);
 
-  const total = maxScore || questions.length;
-  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
-  const mins = Math.floor(timeTaken / 60);
-  const secs = timeTaken % 60;
+  const total  = maxScore || questions.length;
+  const pct    = total > 0 ? Math.round((score / total) * 100) : 0;
+  const mins   = Math.floor(timeTaken / 60);
+  const secs   = timeTaken % 60;
   const passed = pct >= 60;
 
   const { addSession } = usePrep();
@@ -29,22 +102,34 @@ export default function MockTestResults() {
     savedRef.current = true;
     const now = new Date();
     addSession({
-      id: Date.now(),
-      type: 'AI Mock Test',
-      topic: topic || 'General',
-      score: `${score.toFixed(1)}/${total}`,
+      id:     Date.now(),
+      type:   'AI Mock Test',
+      topic:  topic || 'General',
+      score:  `${score.toFixed(1)}/${total}`,
       pct,
-      date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date:   now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
       dayKey: now.toISOString().slice(0, 10),
       status: passed ? 'Passed' : 'Failed',
     });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const circleCirc = 2 * Math.PI * 54; // r=54
-  const offset = circleCirc - (pct / 100) * circleCirc;
+  // Fallback: if results were navigated from history (no state), load from localStorage
+  useEffect(() => {
+    if (storedReport || storedProctor) return;
+    try {
+      const raw = localStorage.getItem(PROCTOR_REPORT_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setStoredReport(parsed);
+      setStoredProctor(extractProctorFromReport(parsed));
+    } catch (_) { /* ignore */ }
+  }, [storedReport, storedProctor]);
+
+  const circleCirc = 2 * Math.PI * 54;
+  const offset     = circleCirc - (pct / 100) * circleCirc;
 
   const reviewPayload = {
-    topic: topic || 'General',
+    topic:      topic || 'General',
     difficulty: difficulty || 'Medium',
     score,
     maxScore: total,
@@ -53,66 +138,29 @@ export default function MockTestResults() {
     proctor: storedProctor,
     questions: questions.map((q, i) => {
       const userAns = answers[i];
-      const qEval = questionScores[i] || { points: userAns === q.answer ? 1 : 0 };
+      const qEval   = questionScores[i] || { points: userAns === q.answer ? 1 : 0 };
       return {
-        q: q.q,
-        type: q.type,
-        expected_answer: q.expected_answer || null,
-        expected_keywords: Array.isArray(q.expected_keywords) ? q.expected_keywords : [],
-        user_answer: userAns ?? null,
-        correct_answer: q.type === 'mcq' && Array.isArray(q.options) ? q.options[q.answer] : null,
-        points: Number(qEval.points || 0),
+        q:                  q.q,
+        type:               q.type,
+        expected_answer:    q.expected_answer    || null,
+        expected_keywords:  Array.isArray(q.expected_keywords) ? q.expected_keywords : [],
+        user_answer:        userAns ?? null,
+        correct_answer:     q.type === 'mcq' && Array.isArray(q.options) ? q.options[q.answer] : null,
+        points:             Number(qEval.points || 0),
       };
     }),
   };
 
-  const handleDownloadReport = () => {
+  function handleDownloadReport() {
     if (!storedReport) return;
-    const blob = new Blob([JSON.stringify(storedReport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([JSON.stringify(storedReport, null, 2)], { type:'application/json' });
+    const url  = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
+    link.href     = url;
     link.download = `proctor-report-${Date.now()}.json`;
     link.click();
     URL.revokeObjectURL(url);
-  };
-
-  const deriveProctorFromReport = (report) => {
-    if (!report || !report.metrics) return null;
-    const totalFrames = Number(report.metrics.total_frames || 0);
-    const noFace = Number(report.metrics.no_face_frames || 0);
-    const offCenter = Number(report.metrics.off_center_frames || 0);
-    const multiFace = Number(report.metrics.multi_face_frames || 0);
-    const faceNotPct = totalFrames > 0 ? Number(((noFace / totalFrames) * 100).toFixed(1)) : 0.0;
-    const validFaceFrames = Math.max(0, totalFrames - noFace);
-    const awayPct = validFaceFrames > 0 ? Number(((offCenter / validFaceFrames) * 100).toFixed(1)) : 0.0;
-    const multiPct = totalFrames > 0 ? Number(((multiFace / totalFrames) * 100).toFixed(1)) : 0.0;
-
-    return {
-      cheating: Boolean(report.verdict?.cheating),
-      camera_available: Boolean(report.camera_available),
-      face_not_in_frame_pct: faceNotPct,
-      not_looking_pct: awayPct,
-      multi_face_pct: multiPct,
-      total_frames: totalFrames,
-      flags: Array.isArray(report.verdict?.flags) ? report.verdict.flags : [],
-      cheating_probability: report.verdict?.cheating_probability ?? null,
-      provider: report.provider || 'mediapipe',
-    };
-  };
-
-  useEffect(() => {
-    if (storedReport || storedProctor) return;
-    try {
-      const raw = localStorage.getItem(PROCTOR_REPORT_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setStoredReport(parsed);
-      setStoredProctor(deriveProctorFromReport(parsed));
-    } catch (_) {
-      // Ignore storage errors.
-    }
-  }, [storedReport, storedProctor]);
+  }
 
   return (
     <div className="res-root">
@@ -145,21 +193,33 @@ export default function MockTestResults() {
                   You scored <strong>{score.toFixed(1)}/{total}</strong> on <strong>{topic}</strong> ({difficulty})
                 </p>
                 <div className="res-meta-row">
-                  <span className="res-meta-pill"><Clock size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />{mins}m {secs}s</span>
+                  <span className="res-meta-pill">
+                    <Clock size={12} strokeWidth={2} style={{ verticalAlign:'middle', marginRight:'0.25rem' }} />
+                    {mins}m {secs}s
+                  </span>
                   <span className={`res-meta-pill ${passed ? 'pill-pass' : 'pill-fail'}`}>
-                    {passed ? <CheckCircle2 size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> : <XCircle size={12} strokeWidth={2} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />}{passed ? 'Passed' : 'Failed'}
+                    {passed
+                      ? <CheckCircle2 size={12} strokeWidth={2} style={{ verticalAlign:'middle', marginRight:'0.25rem' }} />
+                      : <XCircle      size={12} strokeWidth={2} style={{ verticalAlign:'middle', marginRight:'0.25rem' }} />}
+                    {passed ? 'Passed' : 'Failed'}
                   </span>
                   <span className="res-meta-pill">{total} Questions</span>
                 </div>
               </div>
             </div>
 
-            {/* Proctoring Verdict */}
+            {/* Proctoring card */}
             {storedProctor && (
-              <div className={`proctor-card ${storedProctor.camera_available ? (storedProctor.cheating ? 'proctor-cheat' : 'proctor-clean') : 'proctor-unavail'}`}>
+              <div className={`proctor-card ${
+                !storedProctor.camera_available
+                  ? 'proctor-unavail'
+                  : storedProctor.cheating
+                    ? 'proctor-cheat'
+                    : 'proctor-clean'
+              }`}>
                 <div className="proctor-card-header">
                   {!storedProctor.camera_available ? (
-                    <><ShieldOff size={18} strokeWidth={1.75} /><span>Proctoring Unavailable</span></>
+                    <><ShieldOff   size={18} strokeWidth={1.75} /><span>Proctoring Unavailable</span></>
                   ) : storedProctor.cheating ? (
                     <><ShieldAlert size={18} strokeWidth={1.75} /><span>Suspicious Activity Detected</span></>
                   ) : (
@@ -178,7 +238,7 @@ export default function MockTestResults() {
                     </div>
                     <div className="proctor-stat">
                       <span className="pstat-label">Not at screen</span>
-                      <span className={`pstat-value ${storedProctor.not_looking_pct > 20 ? 'pstat-bad' : 'pstat-ok'}`}>
+                      <span className={`pstat-value ${storedProctor.not_looking_pct > 25 ? 'pstat-bad' : 'pstat-ok'}`}>
                         {storedProctor.not_looking_pct}%
                       </span>
                     </div>
@@ -191,17 +251,22 @@ export default function MockTestResults() {
                   </div>
                 )}
 
-                {storedProctor.flags && storedProctor.flags.length > 0 && (
+                {storedProctor.flags?.length > 0 && (
                   <ul className="proctor-flags">
                     {storedProctor.flags.map((f, i) => <li key={i}>{f}</li>)}
                   </ul>
                 )}
+
                 {storedReport && (
-                  <button className="res-btn res-btn-retake" onClick={handleDownloadReport}>
+                  <button
+                    className="res-btn res-btn-retake"
+                    style={{ marginTop:'0.75rem' }}
+                    onClick={handleDownloadReport}
+                  >
                     Download Proctor Report
                   </button>
                 )}
-                </div>
+              </div>
             )}
 
             {/* Per-question breakdown */}
@@ -209,15 +274,19 @@ export default function MockTestResults() {
             <div className="res-breakdown">
               {questions.map((q, i) => {
                 const userAns = answers[i];
-                const qEval = questionScores[i] || { points: userAns === q.answer ? 1 : 0 };
-                const points = qEval.points || 0;
+                const qEval   = questionScores[i] || { points: userAns === q.answer ? 1 : 0 };
+                const points  = qEval.points || 0;
                 const correct = points >= 1;
                 const partial = points > 0 && points < 1;
                 return (
                   <div key={i} className={`res-row ${correct ? 'row-correct' : partial ? 'row-partial' : 'row-wrong'}`}>
                     <div className={`res-row-num ${correct ? 'num-correct' : partial ? 'num-partial' : 'num-wrong'}`}>
-                    {correct ? <CheckCircle2 size={15} strokeWidth={2} /> : partial ? <AlertTriangle size={15} strokeWidth={2} /> : <XCircle size={15} strokeWidth={2} />}
-                  </div>
+                      {correct
+                        ? <CheckCircle2  size={15} strokeWidth={2} />
+                        : partial
+                          ? <AlertTriangle size={15} strokeWidth={2} />
+                          : <XCircle       size={15} strokeWidth={2} />}
+                    </div>
                     <div className="res-row-body">
                       <p className="res-q-text">Q{i + 1}. {q.q}</p>
                       <div className="res-ans-row">
@@ -254,14 +323,11 @@ export default function MockTestResults() {
 
             {/* Actions */}
             <div className="res-actions">
-              <button
-                className="res-btn res-btn-retake"
-                onClick={() => navigate('/dashboard/mock-test-setup')}
-              >
-                <RotateCcw size={14} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />New Test
+              <button className="res-btn res-btn-retake" onClick={() => navigate('/dashboard/mock-test-setup')}>
+                <RotateCcw size={14} strokeWidth={2} style={{ marginRight:'0.4rem', verticalAlign:'middle' }} />New Test
               </button>
               <Link to="/dashboard" className="res-btn res-btn-dash">
-                <LayoutDashboard size={14} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Dashboard
+                <LayoutDashboard size={14} strokeWidth={2} style={{ marginRight:'0.4rem', verticalAlign:'middle' }} />Dashboard
               </Link>
             </div>
           </div>
@@ -271,7 +337,6 @@ export default function MockTestResults() {
           </aside>
         </div>
       </div>
-
     </div>
   );
 }

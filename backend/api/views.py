@@ -1,6 +1,7 @@
 import json
 import re
 import os
+import csv
 import uuid
 from datetime import datetime
 from django.http import JsonResponse
@@ -489,3 +490,139 @@ def interview_next(request):
         return JsonResponse({"error": "Invalid JSON body"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+def get_jobs(request):
+    """
+    Return scraped job listings from the MatchMyResume CSV files.
+    Falls back to a curated sample list if CSVs are not found.
+    Supports ?q=<search> query param to filter results.
+    """
+    # Paths to MatchMyResume CSV files (relative to this file's location)
+    base = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..",
+                     "MatchMyResume-TYPE-1-")
+    )
+    candidates = [
+        os.path.join(base, "internships.csv"),
+        os.path.join(base, "naukri_jobs.csv"),
+        os.path.join(base, "api", "internships.csv"),
+    ]
+
+    jobs = []
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        title    = (row.get("title") or row.get("Title") or "").strip()
+                        company  = (row.get("company") or row.get("Company") or "").strip()
+                        location = (row.get("location") or row.get("Location") or "").strip()
+                        desc     = (row.get("job_description") or row.get("Description") or row.get("description") or "").strip()
+                        skills   = (row.get("skills") or row.get("Skills") or "").strip()
+                        link     = (row.get("link") or row.get("Link") or "").strip()
+                        source   = (row.get("source") or "CSV").strip()
+                        if title:
+                            jobs.append({
+                                "title": title,
+                                "company": company,
+                                "location": location,
+                                "description": desc,
+                                "skills": skills,
+                                "link": link,
+                                "source": source,
+                            })
+            except Exception:
+                continue
+
+    # If no CSVs found, return a small hardcoded sample so the UI still works
+    if not jobs:
+        jobs = [
+            {
+                "title": "Software Engineer Intern",
+                "company": "TechCorp",
+                "location": "Remote",
+                "description": "Work on backend services using Python and Django. Experience with REST APIs and databases required. You will design, build, and maintain efficient, reusable, and reliable code.",
+                "skills": "Python, Django, REST APIs, SQL",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "Frontend Developer Intern",
+                "company": "StartupXYZ",
+                "location": "Bangalore",
+                "description": "Build modern web UIs with React and TypeScript. Strong understanding of CSS and responsive design needed. Experience with state management libraries like Redux is a plus.",
+                "skills": "React, TypeScript, CSS, HTML",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "Machine Learning Engineer",
+                "company": "AI Labs",
+                "location": "Remote",
+                "description": "Train and deploy ML models for production. Familiarity with PyTorch, scikit-learn and NLP pipelines required. You will work on developing intelligent systems for real-world applications.",
+                "skills": "Python, PyTorch, scikit-learn, NLP",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "Data Analyst",
+                "company": "FinAnalytics",
+                "location": "Mumbai",
+                "description": "Analyse large datasets and build dashboards using SQL and Power BI. Python scripting is a plus. You will extract actionable insights from complex business data.",
+                "skills": "SQL, Power BI, Python, Excel",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "Full Stack Developer",
+                "company": "Webify Solutions",
+                "location": "Hyderabad",
+                "description": "Develop end-to-end web applications using Node.js, React and MongoDB. Docker and CI/CD experience preferred. You will own features from design to deployment.",
+                "skills": "Node.js, React, MongoDB, Docker",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "DevOps Engineer",
+                "company": "CloudNine Tech",
+                "location": "Pune",
+                "description": "Manage CI/CD pipelines, cloud infrastructure, and containerized deployments. AWS, Kubernetes, and Terraform experience required.",
+                "skills": "AWS, Kubernetes, Terraform, Docker, CI/CD",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "Android Developer Intern",
+                "company": "MobileFirst",
+                "location": "Delhi",
+                "description": "Build and maintain Android applications using Kotlin and Jetpack Compose. RESTful API integration and Git workflow knowledge expected.",
+                "skills": "Kotlin, Android, Jetpack Compose, REST APIs",
+                "link": "",
+                "source": "Sample",
+            },
+            {
+                "title": "Data Science Intern",
+                "company": "Analytica",
+                "location": "Chennai",
+                "description": "Assist in data collection, cleaning, analysis and visualisation. Build predictive models using Python. Exposure to pandas, matplotlib and statsmodels preferred.",
+                "skills": "Python, pandas, matplotlib, machine learning",
+                "link": "",
+                "source": "Sample",
+            },
+        ]
+
+    # Optional search filter
+    q = (request.GET.get("q") or "").strip().lower()
+    if q:
+        jobs = [
+            j for j in jobs
+            if q in j["title"].lower()
+            or q in j["company"].lower()
+            or q in j["skills"].lower()
+            or q in j["description"].lower()
+        ]
+
+    return JsonResponse({"jobs": jobs[:200], "total": len(jobs)})

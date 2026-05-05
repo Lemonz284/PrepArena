@@ -324,3 +324,121 @@
     max-width: 800px;
   }
 }
+
+/* ── Enhanced Proctor Panel ───────────────────────────────────────────── */
+
+/* Integrity (probability) bar */
+.proctor-prob-wrap {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.proctor-prob-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.proctor-prob-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.proctor-prob-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.proctor-prob-track {
+  height: 8px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.proctor-prob-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 1s ease;
+}
+
+/* Metric bars */
+.proctor-metrics-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.proctor-metric-item {
+  padding: 0.75rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.proctor-metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.proctor-bar-track {
+  position: relative;
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: visible;
+  margin-bottom: 0.3rem;
+}
+
+.proctor-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.8s ease;
+}
+
+/* Thin vertical line marking the threshold */
+.proctor-bar-threshold {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.proctor-metric-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.pstat-value-sm {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.pstat-warn { color: #fbbf24; }
+.pfill-ok   { background: #22c55e; }
+.pfill-warn { background: #fbbf24; }
+.pfill-bad  { background: #ef4444; }
+
+/* Download button variant inside proctor card */
+.proctor-dl-btn {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+  flex: none;
+  width: 100%;
+}

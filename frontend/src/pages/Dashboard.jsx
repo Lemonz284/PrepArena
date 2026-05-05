@@ -60,8 +60,8 @@ export default function Dashboard() {
   const resumeRef = useRef();
   const jdRef     = useRef();
 
-  // Calendar state — default to current month (March 2026)
-  const today = new Date(2026, 2, 3); // March 3 2026
+  // Calendar state — default to current month
+  const today = new Date();
   const [calYear,  setCalYear]  = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
@@ -88,6 +88,7 @@ export default function Dashboard() {
   function addSchedule(e) {
     e.preventDefault();
     if (!formDate) { setFormError('Please pick a date.'); return; }
+    if (formDate < minDate) { setFormError('Please pick today or a future date.'); return; }
     setFormError('');
     setSchedule(prev => [
       ...prev,

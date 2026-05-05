@@ -303,7 +303,12 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--green);
+  transition: color 0.3s, background 0.3s;
 }
+
+.proctor-cam-bar--ok    { color: #4ade80; }
+.proctor-cam-bar--warn  { color: #fbbf24; }
+.proctor-cam-bar--alert { color: #f87171; animation: pulse-timer 1s ease-in-out infinite; }
 
 @media (max-width: 480px) {
   .proctor-cam-wrap { width: 120px; bottom: 0.75rem; right: 0.75rem; }

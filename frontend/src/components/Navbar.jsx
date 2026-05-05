@@ -22,16 +22,59 @@ export default function Navbar({ onOpenLogin, onOpenSignup }) {
         </Link>
 
         <ul className="navbar-links">
-          <li>
-            <Link to="/#about" className={`nav-link ${aboutActive ? 'active' : ''}`}>
-              About
-            </Link>
-          </li>
-          <li>
-            <Link to={isDashboardRoute ? '/' : '/dashboard'} className={`nav-link ${isDashboardRoute ? 'active' : ''}`}>
-              {isDashboardRoute ? 'Home' : 'Dashboard'}
-            </Link>
-          </li>
+          {/* ── Home page ── */}
+          {location.pathname === '/' && (
+            <>
+              <li>
+                <Link to="/#about" className={`nav-link ${aboutActive ? 'active' : ''}`}>
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link to="/dashboard" className="nav-link">
+                  Dashboard
+                </Link>
+              </li>
+            </>
+          )}
+
+          {/* ── Dashboard (any sub-route except jobs) ── */}
+          {location.pathname.startsWith('/dashboard') && location.pathname !== '/dashboard/jobs' && (
+            <>
+              <li>
+                <Link to="/" className="nav-link">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/dashboard/jobs"
+                  className="nav-link"
+                >
+                  Jobs Board
+                </Link>
+              </li>
+            </>
+          )}
+
+          {/* ── Jobs Board ── */}
+          {location.pathname === '/dashboard/jobs' && (
+            <>
+              <li>
+                <Link to="/" className="nav-link">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/dashboard"
+                  className="nav-link"
+                >
+                  Dashboard
+                </Link>
+              </li>
+            </>
+          )}
         </ul>
 
         <div className="navbar-auth">

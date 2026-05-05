@@ -22,6 +22,14 @@ export default function Home() {
     }
   }, [location.hash]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('login') === '1') {
+      setSignupMode(false);
+      setShowLogin(true);
+    }
+  }, [location.search]);
+
   const openLogin = () => { setSignupMode(false); setShowLogin(true); };
   const openSignup = () => { setSignupMode(true); setShowLogin(true); };
   const closeModal = () => setShowLogin(false);
