@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Target, TrendingUp, Flame, Trophy, Brain, Mic, History, Check, FileText, Key, CalendarDays, Info, Clipboard, Upload, CheckCircle2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -73,7 +73,29 @@ export default function Dashboard() {
   const [formDate,  setFormDate]  = useState('');
   const [formType,  setFormType]  = useState('mock');
   const [formTopic, setFormTopic] = useState('');
+  const [formEmail, setFormEmail] = useState(localStorage.getItem('scheduleEmail') || '');
+  const [formName, setFormName] = useState(localStorage.getItem('scheduleUserName') || '');
+  const [formDifficulty, setFormDifficulty] = useState('Medium');
   const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    const email = formEmail.trim();
+    if (!email) {
+      setSchedule([]);
+      return;
+    }
+    localStorage.setItem('scheduleEmail', email);
+    fetch(`/api/schedule-sessions/?email=${encodeURIComponent(email)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data?.sessions)) setSchedule(data.sessions);
+      })
+      .catch(() => {});
+  }, [formEmail]);
+
+  useEffect(() => {
+    localStorage.setItem('scheduleUserName', formName.trim());
+  }, [formName]);
 
   // Build calendar map from real schedule entries
   const scheduleMap = schedule.reduce((acc, s) => {
@@ -85,15 +107,32 @@ export default function Dashboard() {
     return acc;
   }, {});
 
-  function addSchedule(e) {
+  async function addSchedule(e) {
     e.preventDefault();
+    if (!formEmail.trim()) { setFormError('Please enter your email.'); return; }
     if (!formDate) { setFormError('Please pick a date.'); return; }
     if (formDate < minDate) { setFormError('Please pick today or a future date.'); return; }
     setFormError('');
-    setSchedule(prev => [
-      ...prev,
-      { id: Date.now(), date: formDate, type: formType, topic: formTopic.trim() }
-    ]);
+    try {
+      const res = await fetch('/api/schedule-sessions/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formEmail.trim(),
+          user_name: formName.trim(),
+          date: formDate,
+          type: formType,
+          topic: formTopic.trim(),
+          difficulty: formType === 'mock' ? formDifficulty : '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.session) throw new Error(data?.error || 'Failed to schedule session');
+      setSchedule(prev => [...prev, data.session]);
+    } catch (err) {
+      setFormError(err.message || 'Could not schedule session');
+      return;
+    }
     setFormDate('');
     setFormTopic('');
     // Navigate calendar to the scheduled month
@@ -102,7 +141,12 @@ export default function Dashboard() {
     setCalMonth(m - 1);
   }
 
-  function removeSchedule(id) {
+  async function removeSchedule(id) {
+    try {
+      await fetch(`/api/schedule-sessions/${id}/`, { method: 'DELETE' });
+    } catch (_) {
+      // Keep UI responsive even if delete request fails.
+    }
     setSchedule(prev => prev.filter(s => s.id !== id));
   }
 
@@ -259,6 +303,28 @@ export default function Dashboard() {
               </div>
 
               <form className="sched-form" onSubmit={addSchedule}>
+                <div className="sched-field">
+                  <label className="sched-label">Email</label>
+                  <input
+                    type="email"
+                    className="sched-input"
+                    placeholder="you@example.com"
+                    value={formEmail}
+                    onChange={e => { setFormEmail(e.target.value); setFormError(''); }}
+                    required
+                  />
+                </div>
+                <div className="sched-field">
+                  <label className="sched-label">Name <span className="sched-label-opt">(optional)</span></label>
+                  <input
+                    type="text"
+                    className="sched-input"
+                    placeholder="Your name"
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    maxLength={80}
+                  />
+                </div>
                 <div className="sched-form-row">
                   {/* Date */}
                   <div className="sched-field">
@@ -288,6 +354,20 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+                {formType === 'mock' && (
+                  <div className="sched-field">
+                    <label className="sched-label">Difficulty</label>
+                    <select
+                      className="sched-input"
+                      value={formDifficulty}
+                      onChange={e => setFormDifficulty(e.target.value)}
+                    >
+                      <option value="Easy">Easy</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
+                  </div>
+                )}
                 {/* Topic */}
                 <div className="sched-field">
                   <label className="sched-label">Topic <span className="sched-label-opt">(optional)</span></label>

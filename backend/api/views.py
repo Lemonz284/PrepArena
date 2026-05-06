@@ -3,7 +3,7 @@ import re
 import os
 import csv
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -14,6 +14,8 @@ from django.contrib.auth.models import User
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from api.models import ScheduledSession
+from api.reminders import send_confirmation_email
 
 
 load_dotenv()
@@ -441,6 +443,81 @@ def register_user(request):
     )
 
     return Response({"message": "User created successfully"}, status=status.HTTP_201_CREATED)
+
+
+def _serialize_schedule(session: ScheduledSession) -> dict:
+    return {
+        "id": session.id,
+        "email": session.email,
+        "user_name": session.user_name,
+        "date": session.scheduled_date.isoformat(),
+        "type": session.session_type,
+        "topic": session.topic,
+        "difficulty": session.difficulty,
+    }
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def schedule_sessions(request):
+    if request.method == "GET":
+        email = (request.GET.get("email") or "").strip()
+        qs = ScheduledSession.objects.all()
+        if email:
+            qs = qs.filter(email=email)
+        payload = [_serialize_schedule(s) for s in qs.order_by("scheduled_date")]
+        return JsonResponse({"sessions": payload})
+
+    try:
+        body = json.loads(request.body)
+        email = str(body.get("email", "")).strip()
+        raw_date = str(body.get("date", "")).strip()
+        session_type = str(body.get("type", "")).strip()
+        topic = str(body.get("topic", "")).strip()[:120]
+        difficulty = str(body.get("difficulty", "")).strip()[:20]
+        user_name = str(body.get("user_name", "")).strip()[:80]
+
+        if not email:
+            return JsonResponse({"error": "email is required"}, status=400)
+        if session_type not in ("mock", "interview"):
+            return JsonResponse({"error": "type must be 'mock' or 'interview'"}, status=400)
+        try:
+            scheduled_date = date.fromisoformat(raw_date)
+        except ValueError:
+            return JsonResponse({"error": "date must be YYYY-MM-DD"}, status=400)
+        if scheduled_date < date.today():
+            return JsonResponse({"error": "date must be today or future"}, status=400)
+
+        session = ScheduledSession.objects.create(
+            email=email,
+            scheduled_date=scheduled_date,
+            session_type=session_type,
+            topic=topic,
+            difficulty=difficulty if session_type == "mock" else "",
+            user_name=user_name,
+        )
+
+        try:
+            send_confirmation_email(session)
+            session.confirmation_sent = True
+            session.save(update_fields=["confirmation_sent"])
+        except Exception as err:
+            print(f"[Schedule] Confirmation email failed for {session.id}: {err}")
+
+        return JsonResponse({"session": _serialize_schedule(session)})
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+    except Exception as err:
+        return JsonResponse({"error": str(err)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_schedule_session(request, session_id: int):
+    deleted, _ = ScheduledSession.objects.filter(id=session_id).delete()
+    if not deleted:
+        return JsonResponse({"error": "Schedule not found"}, status=404)
+    return JsonResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------

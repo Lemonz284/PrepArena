@@ -140,3 +140,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_API_KEY2 = os.getenv("GROQ_API_KEY2", "")
 GROQ_API_KEY3 = os.getenv("GROQ_API_KEY3", "")
+
+# Email provider config (Resend).
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "")
+DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:5173/dashboard")
