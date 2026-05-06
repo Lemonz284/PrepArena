@@ -19,7 +19,6 @@ function extractProctorFromReport(report) {
 
   const totalFrames     = Number(report.metrics?.total_frames      || 0);
   const noFaceFrames    = Number(report.metrics?.no_face_frames    || 0);
-  const offCenterFrames = Number(report.metrics?.off_center_frames || 0);
   const multiFaceFrames = Number(report.metrics?.multi_face_frames || 0);
 
   const cameraAvailable = Boolean(report.camera_available);
@@ -28,7 +27,7 @@ function extractProctorFromReport(report) {
   if (!cameraAvailable) {
     return {
       cheating: false, camera_available: false,
-      face_not_in_frame_pct: 0.0, not_looking_pct: 0.0, multi_face_pct: 0.0,
+      face_not_in_frame_pct: 0.0, multi_face_pct: 0.0,
       total_frames: totalFrames, flags: [], cheating_probability: null,
       provider: 'mediapipe', no_frames: true,
     };
@@ -39,31 +38,26 @@ function extractProctorFromReport(report) {
   if (totalFrames === 0) {
     return {
       cheating: false, camera_available: true,
-      face_not_in_frame_pct: 0.0, not_looking_pct: 0.0, multi_face_pct: 0.0,
+      face_not_in_frame_pct: 0.0, multi_face_pct: 0.0,
       total_frames: 0, flags: [], cheating_probability: null,
       provider: 'mediapipe', no_frames: true,
     };
   }
 
   const FACE_MISSING_THRESHOLD = report.thresholds?.face_missing_pct ?? 15.0;
-  const LOOK_AWAY_THRESHOLD    = report.thresholds?.look_away_pct    ?? 25.0;
   const MULTI_FACE_THRESHOLD   = report.thresholds?.multi_face_pct   ??  5.0;
 
   const faceNotPct      = Number(((noFaceFrames / totalFrames) * 100).toFixed(1));
-  const validFaceFrames = Math.max(0, totalFrames - noFaceFrames);
-  const awayPct         = Number(((validFaceFrames > 0 ? offCenterFrames / validFaceFrames : 0) * 100).toFixed(1));
   const multiPct        = Number(((multiFaceFrames / totalFrames) * 100).toFixed(1));
 
   const flags = [];
   if (faceNotPct > FACE_MISSING_THRESHOLD) flags.push(`Face absent ${faceNotPct}% of the time`);
-  if (awayPct    > LOOK_AWAY_THRESHOLD)    flags.push(`Not looking at screen ${awayPct}% of the time`);
   if (multiPct   > MULTI_FACE_THRESHOLD)   flags.push(`Multiple people detected in ${multiPct}% of frames`);
 
   const cheatingProbability = Number(
     Math.min(1, Math.max(0,
-      (faceNotPct / 100) * 0.5 +
-      (awayPct    / 100) * 0.35 +
-      (multiPct   / 100) * 0.15
+      (faceNotPct / 100) * 0.7 +
+      (multiPct   / 100) * 0.3
     )).toFixed(3)
   );
 
@@ -71,7 +65,6 @@ function extractProctorFromReport(report) {
     cheating: flags.length > 0,
     camera_available: true,
     face_not_in_frame_pct: faceNotPct,
-    not_looking_pct: awayPct,
     multi_face_pct: multiPct,
     total_frames: totalFrames,
     flags,
@@ -270,12 +263,6 @@ export default function MockTestResults() {
                         <span className="pstat-label">Face absent</span>
                         <span className={`pstat-value ${p.face_not_in_frame_pct > 15 ? 'pstat-bad' : 'pstat-ok'}`}>
                           {p.face_not_in_frame_pct}%
-                        </span>
-                      </div>
-                      <div className="proctor-stat">
-                        <span className="pstat-label">Off-center</span>
-                        <span className={`pstat-value ${p.not_looking_pct > 25 ? 'pstat-bad' : 'pstat-ok'}`}>
-                          {p.not_looking_pct}%
                         </span>
                       </div>
                       <div className="proctor-stat">

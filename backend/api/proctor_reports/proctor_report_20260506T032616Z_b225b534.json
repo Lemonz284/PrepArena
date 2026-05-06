@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-05-06T03:26:16.748Z",
+  "provider": "opencv",
+  "result": {
+    "cheating": false,
+    "camera_available": true,
+    "face_not_in_frame_pct": 2.6,
+    "multi_face_pct": 0,
+    "total_frames": 38,
+    "flags": [],
+    "cheating_probability": 0.024,
+    "provider": "opencv",
+    "window_switches": 0
+  },
+  "session": {
+    "topic": "Mathematics",
+    "difficulty": "Easy",
+    "question_count": 5
+  }
+}

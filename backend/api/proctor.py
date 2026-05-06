@@ -250,7 +250,6 @@ class _Session:
                     'cheating': False,
                     'camera_available': False,
                     'face_not_in_frame_pct': 0.0,
-                    'not_looking_pct': 0.0,    # kept for schema compat, always 0
                     'multi_face_pct': 0.0,
                     'total_frames': tf,
                     'flags': [],
@@ -282,7 +281,6 @@ class _Session:
                 'cheating':               cheating,
                 'camera_available':       True,
                 'face_not_in_frame_pct':  face_not_pct,
-                'not_looking_pct':        0.0,   # removed — always 0 for schema compat
                 'multi_face_pct':         multi_pct,
                 'total_frames':           tf,
                 'flags':                  flags,
